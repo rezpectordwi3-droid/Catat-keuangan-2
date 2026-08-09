@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "User": {
+      "collection": "users",
+      "fields": {
+        "name": {
+          "type": "string",
+          "description": "Nama pengguna / warung"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email pengguna"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Nomor Telepon"
+        },
+        "openBalance": {
+          "type": "number",
+          "description": "Modal awal kas"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp pembaruan"
+        }
+      }
+    },
+    "Transaction": {
+      "collection": "users/{userId}/transactions",
+      "fields": {
+        "date": {
+          "type": "string",
+          "description": "Tanggal YYYY-MM-DD"
+        },
+        "time": {
+          "type": "string",
+          "description": "Waktu HH:mm"
+        },
+        "type": {
+          "type": "string",
+          "description": "cash_in or cash_out"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Jumlah nominal"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "ID Kategori"
+        },
+        "categoryName": {
+          "type": "string",
+          "description": "Nama Kategori"
+        },
+        "account": {
+          "type": "string",
+          "description": "Akun pembayaran"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Catatan"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp epoch"
+        }
+      }
+    }
+  },
+  "securityRules": {
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /users/{userId} {\n      allow read, write: if request.auth != null && request.auth.uid == userId;\n      match /{document=**} {\n        allow read, write: if request.auth != null && request.auth.uid == userId;\n      }\n    }\n  }\n}"
+  }
+}
