@@ -33,6 +33,7 @@ import { KasbonManager } from './components/KasbonManager';
 import { AccountsManager } from './components/AccountsManager';
 import { ExportReportModal } from './components/ExportReportModal';
 import { PinLockModal } from './components/PinLockModal';
+import { SplashScreen } from './components/SplashScreen';
 import {
   syncUserToFirestore,
   saveTransactionToFirestore,
@@ -64,6 +65,9 @@ export default function App() {
 
   // Time filter for dashboard
   const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
+
+  // Splash screen state
+  const [showSplash, setShowSplash] = useState(true);
 
   // Tutup Buku (Monthly Closing) State
   const [closedMonths, setClosedMonths] = useState<string[]>([]);
@@ -494,6 +498,9 @@ export default function App() {
           <span>{autoSyncToast}</span>
         </div>
       )}
+
+      {/* Opening Splash Screen */}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
 
     </div>
   );
