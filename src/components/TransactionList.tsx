@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, Category } from '../types';
-import { Search, Filter, Trash2, Edit3, ArrowUpRight, ArrowDownLeft, Utensils, Car, ShoppingCart, Receipt, Tv, HeartPulse, GraduationCap, MoreHorizontal, Briefcase, Store, Gift, TrendingUp, Calendar, Wallet, Building2, Smartphone, CreditCard, FileText } from 'lucide-react';
+import { Search, Filter, Trash2, Edit3, ArrowUpRight, ArrowDownLeft, Utensils, Car, ShoppingCart, Receipt, Tv, HeartPulse, GraduationCap, MoreHorizontal, Briefcase, Store, Gift, TrendingUp, Calendar, Wallet, Building2, Smartphone, CreditCard, FileText, Printer } from 'lucide-react';
 import { formatRupiah, formatDateIndonesian } from '../utils/formatters';
 import { sanitizeTimeString, exportSingleNoteToMarkdown } from '../utils/storage';
 
@@ -9,6 +9,7 @@ interface TransactionListProps {
   categories: Category[];
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
+  onPrintTransaction?: (transaction: Transaction) => void;
   closedMonths?: string[];
   selectedMonthFilter?: string; // 'current' | 'all' | 'YYYY-MM'
   onSelectMonthFilter?: (monthStr: string) => void;
@@ -20,6 +21,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   categories,
   onEditTransaction,
   onDeleteTransaction,
+  onPrintTransaction,
   closedMonths = [],
   selectedMonthFilter = 'current',
   onSelectMonthFilter,
@@ -316,6 +318,15 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                           </div>
 
                           <div className="opacity-100 sm:opacity-0 group-hover:opacity-100 transition flex items-center space-x-1 pl-2 border-l border-slate-100">
+                            {onPrintTransaction && (
+                              <button
+                                onClick={() => onPrintTransaction(tx)}
+                                title="Cetak Struk"
+                                className="p-1 text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => exportSingleNoteToMarkdown(tx)}
                               title="Ekspor Catatan ke Markdown (.md)"

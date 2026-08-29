@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { DebtItem, Transaction } from '../types';
 import { formatRupiah } from '../utils/formatters';
-import { MessageSquare, Plus, CheckCircle2, Clock, Trash2, ArrowUpRight, ArrowDownLeft, AlertCircle, Calendar, User, Search, Filter } from 'lucide-react';
+import { MessageSquare, Plus, CheckCircle2, Clock, Trash2, ArrowUpRight, ArrowDownLeft, AlertCircle, Calendar, User, Search, Filter, Printer } from 'lucide-react';
 
 interface KasbonManagerProps {
   debts: DebtItem[];
   onSaveDebts: (updatedDebts: DebtItem[]) => void;
   onAddTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
+  onPrintKasbon?: (kasbon: DebtItem) => void;
 }
 
 export const KasbonManager: React.FC<KasbonManagerProps> = ({
   debts,
   onSaveDebts,
   onAddTransaction,
+  onPrintKasbon,
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'receivable' | 'payable'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'unpaid' | 'paid'>('all');
@@ -296,6 +298,16 @@ export const KasbonManager: React.FC<KasbonManagerProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-2">
+                      {onPrintKasbon && (
+                        <button
+                          onClick={() => onPrintKasbon(debt)}
+                          title="Cetak Bukti Tagihan / Kasbon"
+                          className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200 transition cursor-pointer"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      )}
+
                       {isUnpaid && debt.phone && (
                         <button
                           onClick={() => handleSendWhatsApp(debt)}

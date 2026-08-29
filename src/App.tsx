@@ -41,6 +41,7 @@ import { ExportReportModal } from './components/ExportReportModal';
 import { PinLockModal } from './components/PinLockModal';
 import { SplashScreen } from './components/SplashScreen';
 import { CalculatorModal } from './components/CalculatorModal';
+import { PrintReceiptModal } from './components/PrintReceiptModal';
 import {
   syncUserToFirestore,
   saveTransactionToFirestore,
@@ -91,6 +92,7 @@ export default function App() {
 
   // In-App Calculator Modal state
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [printPayload, setPrintPayload] = useState<{type: 'transaction'|'kasbon'|'report', data: any} | null>(null);
 
   // Auto-sync Toast notification state
   const [autoSyncToast, setAutoSyncToast] = useState<string | null>(null);
@@ -420,6 +422,7 @@ export default function App() {
                 setIsQuickAddOpen(true);
               }}
               onDeleteTransaction={handleDeleteTransaction}
+              onPrintTransaction={(tx) => setPrintPayload({ type: 'transaction', data: tx })}
               closedMonths={closedMonths}
               selectedMonthFilter={selectedMonthFilter}
               onSelectMonthFilter={setSelectedMonthFilter}
@@ -456,6 +459,7 @@ export default function App() {
             debts={debts}
             onSaveDebts={handleSaveDebts}
             onAddTransaction={(tx) => handleSaveTransaction(tx)}
+            onPrintKasbon={(kasbon) => setPrintPayload({ type: 'kasbon', data: kasbon })}
           />
         )}
 
@@ -629,6 +633,14 @@ export default function App() {
         isOpen={isCalculatorOpen}
         onClose={() => setIsCalculatorOpen(false)}
         onUseAmount={handleCalculatorUseAmount}
+      />
+
+      {/* Print Receipt Modal */}
+      <PrintReceiptModal
+        isOpen={printPayload !== null}
+        onClose={() => setPrintPayload(null)}
+        data={printPayload?.data}
+        type={printPayload?.type as any}
       />
 
       {/* Auto-Sync Toast Notification */}
