@@ -1,4 +1,4 @@
-import { Category, Transaction, PaymentAccount, AccountInfo, SyncSettings } from '../types';
+import { Category, Transaction, PaymentAccount, AccountInfo, SyncSettings, BillItem } from '../types';
 import { getTodayDateString } from '../utils/formatters';
 
 export const DEFAULT_CATEGORIES: Category[] = [
@@ -28,6 +28,46 @@ export const INITIAL_SYNC_SETTINGS: SyncSettings = {
   googleSheetsWebhookUrl: '',
 };
 
+export const INITIAL_BILLS: BillItem[] = [
+  {
+    id: 'bill-1',
+    title: 'Listrik & Token PLN',
+    amount: 250000,
+    categoryName: 'Listrik & Sewa Warung',
+    dueDateDay: 20,
+    repeatPeriod: 'monthly',
+    account: 'bank',
+    status: 'unpaid',
+    notes: 'ID Pelanggan PLN Warung',
+    createdAt: Date.now() - 86400000 * 10,
+  },
+  {
+    id: 'bill-2',
+    title: 'Sewa Kios / Tempat',
+    amount: 750000,
+    categoryName: 'Listrik & Sewa Warung',
+    dueDateDay: 25,
+    repeatPeriod: 'monthly',
+    account: 'bank',
+    status: 'unpaid',
+    notes: 'Transfer pemilik ruko',
+    createdAt: Date.now() - 86400000 * 5,
+  },
+  {
+    id: 'bill-3',
+    title: 'WiFi & Internet Kasir',
+    amount: 150000,
+    categoryName: 'Listrik & Sewa Warung',
+    dueDateDay: 15,
+    repeatPeriod: 'monthly',
+    account: 'ewallet',
+    status: 'unpaid',
+    notes: 'IndiHome / Biznet',
+    createdAt: Date.now() - 86400000 * 2,
+  },
+];
+
 export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
 export const DEFAULT_OPEN_BALANCE = 0; // Modal Awal Kosong
+

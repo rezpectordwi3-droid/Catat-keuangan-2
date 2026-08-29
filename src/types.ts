@@ -70,4 +70,41 @@ export interface DebtItem {
   paidAt?: number;
 }
 
-export type ViewTab = 'dashboard' | 'analytics' | 'categories' | 'kasbon' | 'accounts' | 'export' | 'sync' | 'features';
+export interface BillItem {
+  id: string;
+  title: string;
+  amount: number;
+  categoryName: string;
+  dueDateDay: number; // 1 - 31 (day of month for recurring bill)
+  repeatPeriod: 'monthly' | 'weekly' | 'yearly' | 'once';
+  account: PaymentAccount;
+  status: 'unpaid' | 'paid';
+  lastPaidDate?: string; // YYYY-MM-DD
+  notes?: string;
+  createdAt: number;
+}
+
+export interface FinancialHealthMetrics {
+  score: number; // 0 - 100
+  status: 'excellent' | 'good' | 'warning' | 'critical';
+  statusLabel: string;
+  profitMargin: number; // percentage
+  expenseRatio: number; // percentage
+  cashRunwayDays: number; // estimated days of runway
+  debtRiskRatio: number; // percentage of debt vs cash
+  strengths: string[];
+  recommendations: string[];
+}
+
+export type ViewTab =
+  | 'dashboard'
+  | 'bills'
+  | 'health'
+  | 'kasbon'
+  | 'accounts'
+  | 'analytics'
+  | 'export'
+  | 'categories'
+  | 'sync'
+  | 'features';
+

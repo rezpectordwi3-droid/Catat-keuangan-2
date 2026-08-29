@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ViewTab, Transaction, Category, SyncSettings, AuthUser, AccountInfo, DebtItem } from './types';
+import { ViewTab, Transaction, Category, SyncSettings, AuthUser, AccountInfo, DebtItem, BillItem, TransactionType } from './types';
 import {
   loadStoredTransactions,
   saveTransactions,
@@ -13,6 +13,9 @@ import {
   saveAccounts,
   loadStoredDebts,
   saveDebts,
+  loadStoredBills,
+  saveBills,
+  calculateFinancialHealthMetrics,
   loadStoredPin,
   savePin,
   loadClosedMonths,
@@ -21,9 +24,12 @@ import {
   resetToSampleData,
 } from './utils/storage';
 import { Header } from './components/Header';
+import { WelcomeOverviewGateway } from './components/WelcomeOverviewGateway';
 import { BalanceSummaryCards } from './components/BalanceSummaryCards';
 import { QuickAddModal } from './components/QuickAddModal';
 import { TransactionList } from './components/TransactionList';
+import { FinancialHealthView } from './components/FinancialHealthView';
+import { BillsManager } from './components/BillsManager';
 import { AnalyticsView } from './components/AnalyticsView';
 import { CategoryManager } from './components/CategoryManager';
 import { SyncModal } from './components/SyncModal';
@@ -34,13 +40,16 @@ import { AccountsManager } from './components/AccountsManager';
 import { ExportReportModal } from './components/ExportReportModal';
 import { PinLockModal } from './components/PinLockModal';
 import { SplashScreen } from './components/SplashScreen';
+import { CalculatorModal } from './components/CalculatorModal';
 import {
   syncUserToFirestore,
   saveTransactionToFirestore,
+  saveAllTransactionsToFirestore,
   deleteTransactionFromFirestore,
   fetchTransactionsFromFirestore,
+  mergeTransactions,
 } from './utils/firestoreStorage';
-import { Plus, Wallet, BarChart3, RefreshCw, Zap } from 'lucide-react';
+import { Plus, Wallet, BarChart3, RefreshCw, Zap, Receipt, Activity, MessageSquare, Calculator as CalcIcon } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -48,6 +57,7 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [debts, setDebts] = useState<DebtItem[]>([]);
+  const [bills, setBills] = useState<BillItem[]>([]);
   const [openBalance, setOpenBalance] = useState<number>(0);
   const [syncSettings, setSyncSettings] = useState<SyncSettings>({
     autoSync: false,
@@ -75,17 +85,24 @@ export default function App() {
 
   // Quick Add Modal state
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickAddType, setQuickAddType] = useState<TransactionType>('cash_out');
+  const [quickAddInitialAmount, setQuickAddInitialAmount] = useState<number>(0);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
+  // In-App Calculator Modal state
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
   // Auto-sync Toast notification state
   const [autoSyncToast, setAutoSyncToast] = useState<string | null>(null);
 
   // Initialize data on mount
   useEffect(() => {
-    setTransactions(loadStoredTransactions());
+    const initialLocalTxs = loadStoredTransactions();
+    setTransactions(initialLocalTxs);
     setCategories(loadStoredCategories());
     setAccounts(loadStoredAccounts());
     setDebts(loadStoredDebts());
+    setBills(loadStoredBills());
     setOpenBalance(loadStoredOpenBalance());
     setSyncSettings(loadSyncSettings());
     setClosedMonths(loadClosedMonths());
@@ -103,11 +120,15 @@ export default function App() {
         setCurrentUser(parsed);
         // Sync user to Firestore in background
         syncUserToFirestore(parsed, loadStoredOpenBalance());
-        // Fetch transactions from Firestore if available
+        // Fetch transactions from Firestore and safely merge with local storage
         fetchTransactionsFromFirestore(parsed.id).then((cloudTxs) => {
-          if (cloudTxs && cloudTxs.length > 0) {
-            setTransactions(cloudTxs);
-            saveTransactions(cloudTxs);
+          const localTxs = loadStoredTransactions();
+          const merged = mergeTransactions(localTxs, cloudTxs);
+          setTransactions(merged);
+          saveTransactions(merged);
+          // If local had transactions not yet saved to cloud, sync them up
+          if (merged.length > cloudTxs.length) {
+            saveAllTransactionsToFirestore(parsed.id, merged);
           }
         });
       }
@@ -119,6 +140,11 @@ export default function App() {
   const handleSaveDebts = (updatedDebts: DebtItem[]) => {
     setDebts(updatedDebts);
     saveDebts(updatedDebts);
+  };
+
+  const handleSaveBills = (updatedBills: BillItem[]) => {
+    setBills(updatedBills);
+    saveBills(updatedBills);
   };
 
   const handleSaveAccounts = (updatedAccounts: AccountInfo[]) => {
@@ -151,15 +177,12 @@ export default function App() {
     // Sync user & transactions with Firestore
     await syncUserToFirestore(user, openBalance);
     const cloudTxs = await fetchTransactionsFromFirestore(user.id);
-    if (cloudTxs && cloudTxs.length > 0) {
-      setTransactions(cloudTxs);
-      saveTransactions(cloudTxs);
-    } else if (transactions.length > 0) {
-      // Push existing local transactions to Firestore
-      for (const tx of transactions) {
-        saveTransactionToFirestore(user.id, tx);
-      }
-    }
+    const localTxs = loadStoredTransactions();
+    const merged = mergeTransactions(localTxs, cloudTxs);
+    setTransactions(merged);
+    saveTransactions(merged);
+    // Push all merged records to cloud
+    await saveAllTransactionsToFirestore(user.id, merged);
   };
 
   const handleLogout = () => {
@@ -237,6 +260,8 @@ export default function App() {
   };
 
   const summary = calculateBalanceSummary(transactions, openBalance, timeFilter);
+  const healthMetrics = calculateFinancialHealthMetrics(transactions, summary.totalBalance, debts, bills);
+  const unpaidBillsCount = bills.filter((b) => b.status === 'unpaid').length;
 
   const handleUpdateOpenBalance = (newBalanceInput: number) => {
     const newBase = newBalanceInput - summary.priorNet;
@@ -291,12 +316,18 @@ export default function App() {
   };
 
   // Restore backup
-  const handleRestoreBackup = (data: { transactions: Transaction[]; categories?: Category[]; openBalance?: number }) => {
-    if (data.transactions) {
+  const handleRestoreBackup = (data: { transactions: Transaction[]; categories?: Category[]; openBalance?: number; bills?: BillItem[] }) => {
+    if (data.transactions && data.transactions.length > 0) {
       handleSaveTransactions(data.transactions);
+      if (currentUser) {
+        saveAllTransactionsToFirestore(currentUser.id, data.transactions);
+      }
     }
     if (data.categories) {
       handleSaveCategories(data.categories);
+    }
+    if (data.bills) {
+      handleSaveBills(data.bills);
     }
     if (typeof data.openBalance === 'number') {
       handleUpdateOpenBalance(data.openBalance);
@@ -308,21 +339,34 @@ export default function App() {
     resetToSampleData();
     setTransactions(loadStoredTransactions());
     setCategories(loadStoredCategories());
+    setBills(loadStoredBills());
     setOpenBalance(loadStoredOpenBalance());
     setSyncSettings(loadSyncSettings());
   };
 
+  const handleOpenQuickAdd = (type: TransactionType = 'cash_out', initialAmt = 0) => {
+    setEditingTransaction(null);
+    setQuickAddType(type);
+    setQuickAddInitialAmount(initialAmt);
+    setIsQuickAddOpen(true);
+  };
+
+  const handleCalculatorUseAmount = (amount: number, type: TransactionType) => {
+    setEditingTransaction(null);
+    setQuickAddType(type);
+    setQuickAddInitialAmount(amount);
+    setIsQuickAddOpen(true);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-800 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900 pb-20">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-100/70 text-slate-800 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900 pb-24 sm:pb-20">
       
       {/* Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenQuickAdd={() => {
-          setEditingTransaction(null);
-          setIsQuickAddOpen(true);
-        }}
+        onOpenQuickAdd={() => handleOpenQuickAdd('cash_out')}
+        onOpenCalculator={() => setIsCalculatorOpen(true)}
         totalBalance={summary.totalBalance}
         lastSyncTime={syncSettings.lastSyncTime}
         cloudSyncEnabled={syncSettings.cloudSyncEnabled}
@@ -330,15 +374,31 @@ export default function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
         savedPin={savedPin}
         onOpenPinModal={() => setIsPinModalOpen(true)}
+        unpaidBillsCount={unpaidBillsCount}
+        healthScore={healthMetrics.score}
       />
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6 w-full max-w-full overflow-hidden sm:overflow-visible">
         
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             
+            {/* New Welcome Overview Gateway & Fast Launcher */}
+            <WelcomeOverviewGateway
+              currentUser={currentUser}
+              totalBalance={summary.totalBalance}
+              transactions={transactions}
+              bills={bills}
+              debts={debts}
+              healthMetrics={healthMetrics}
+              onOpenQuickAdd={handleOpenQuickAdd}
+              onOpenCalculator={() => setIsCalculatorOpen(true)}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onOpenAuth={() => setIsAuthModalOpen(true)}
+            />
+
             {/* 4 Core Cards: Open Balance, Cash In, Cash Out, Total Balance */}
             <BalanceSummaryCards
               openBalance={summary.openBalance}
@@ -356,6 +416,7 @@ export default function App() {
               categories={categories}
               onEditTransaction={(tx) => {
                 setEditingTransaction(tx);
+                setQuickAddType(tx.type);
                 setIsQuickAddOpen(true);
               }}
               onDeleteTransaction={handleDeleteTransaction}
@@ -365,6 +426,28 @@ export default function App() {
               onCloseCurrentMonth={handleCloseCurrentMonth}
             />
           </div>
+        )}
+
+        {/* FINANCIAL HEALTH TAB */}
+        {activeTab === 'health' && (
+          <FinancialHealthView
+            metrics={healthMetrics}
+            transactions={transactions}
+            totalBalance={summary.totalBalance}
+            debts={debts}
+            bills={bills}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+          />
+        )}
+
+        {/* BILLS TAB */}
+        {activeTab === 'bills' && (
+          <BillsManager
+            bills={bills}
+            categories={categories}
+            onSaveBills={handleSaveBills}
+            onAddTransaction={(tx) => handleSaveTransaction(tx)}
+          />
         )}
 
         {/* KASBON TAB */}
@@ -442,6 +525,8 @@ export default function App() {
             onOpenAccounts={() => setActiveTab('accounts')}
             onOpenExport={() => setActiveTab('export')}
             onOpenPinModal={() => setIsPinModalOpen(true)}
+            onOpenBills={() => setActiveTab('bills')}
+            onOpenHealth={() => setActiveTab('health')}
           />
         )}
 
@@ -466,16 +551,61 @@ export default function App() {
         setIsUnlocked={setIsUnlocked}
       />
 
-      {/* Quick Floating Action Button for Mobile */}
-      <div className="fixed bottom-5 right-5 z-40 sm:hidden">
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 sm:hidden bg-white/95 backdrop-blur-md border-t border-slate-200 px-1.5 py-1.5 flex items-center justify-around shadow-lg safe-area-bottom">
+        {/* Catatan Harian */}
         <button
-          onClick={() => {
-            setEditingTransaction(null);
-            setIsQuickAddOpen(true);
-          }}
-          className="w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-xl flex items-center justify-center transition active:scale-95"
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition cursor-pointer ${
+            activeTab === 'dashboard' ? 'text-emerald-600 font-bold' : 'text-slate-500'
+          }`}
         >
-          <Plus className="w-7 h-7 stroke-[2.5]" />
+          <Wallet className="w-4 h-4 mb-0.5" />
+          <span className="text-[10px]">Catatan</span>
+        </button>
+
+        {/* Tagihan Rutin */}
+        <button
+          onClick={() => setActiveTab('bills')}
+          className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition cursor-pointer relative ${
+            activeTab === 'bills' ? 'text-emerald-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <Receipt className="w-4 h-4 mb-0.5" />
+          <span className="text-[10px]">Tagihan</span>
+          {unpaidBillsCount > 0 && (
+            <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
+          )}
+        </button>
+
+        {/* Big Center Action Button: + Catat */}
+        <button
+          onClick={() => handleOpenQuickAdd('cash_out')}
+          className="w-11 h-11 -mt-4 bg-gradient-to-tr from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-full shadow-lg flex items-center justify-center transition active:scale-90 cursor-pointer border-2 border-white shrink-0"
+          title="Tambah Transaksi Cepat"
+        >
+          <Plus className="w-6 h-6 stroke-[2.5]" />
+        </button>
+
+        {/* Kalkulator Shortcut Button */}
+        <button
+          onClick={() => setIsCalculatorOpen(true)}
+          className="flex flex-col items-center py-1 px-1.5 rounded-xl transition cursor-pointer text-amber-600 hover:text-amber-700 active:scale-95"
+          title="Buka Kalkulator Finansial"
+        >
+          <CalcIcon className="w-4 h-4 mb-0.5 text-amber-500" />
+          <span className="text-[10px] font-semibold text-slate-700">Kalkulator</span>
+        </button>
+
+        {/* Buku Kasbon */}
+        <button
+          onClick={() => setActiveTab('kasbon')}
+          className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition cursor-pointer ${
+            activeTab === 'kasbon' ? 'text-emerald-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 mb-0.5" />
+          <span className="text-[10px]">Kasbon</span>
         </button>
       </div>
 
@@ -485,10 +615,20 @@ export default function App() {
         onClose={() => {
           setIsQuickAddOpen(false);
           setEditingTransaction(null);
+          setQuickAddInitialAmount(0);
         }}
         categories={categories}
         onSaveTransaction={handleSaveTransaction}
         editingTransaction={editingTransaction}
+        initialType={quickAddType}
+        initialAmount={quickAddInitialAmount}
+      />
+
+      {/* In-App Financial Calculator Modal */}
+      <CalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+        onUseAmount={handleCalculatorUseAmount}
       />
 
       {/* Auto-Sync Toast Notification */}

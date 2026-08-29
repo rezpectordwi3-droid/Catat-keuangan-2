@@ -15,7 +15,8 @@ import {
   getDoc,
   collection,
   getDocs,
-  deleteDoc
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -34,6 +35,7 @@ export {
   getDoc,
   collection,
   getDocs,
-  deleteDoc
+  deleteDoc,
+  writeBatch
 };
 export type { FirebaseUser };

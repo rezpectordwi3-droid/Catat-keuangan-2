@@ -134,14 +134,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         </div>
 
         {/* Tutup Buku & Month Filter Row */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Month Selector */}
-          <div className="flex items-center space-x-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
-            <Calendar className="w-3.5 h-3.5 text-slate-500 ml-1.5" />
+          <div className="flex items-center space-x-1 bg-slate-50 p-1 rounded-xl border border-slate-200 flex-1 sm:flex-initial">
+            <Calendar className="w-3.5 h-3.5 text-slate-500 ml-1.5 shrink-0" />
             <select
               value={selectedMonthFilter}
               onChange={(e) => onSelectMonthFilter && onSelectMonthFilter(e.target.value)}
-              className="text-xs bg-transparent border-none font-bold text-slate-800 outline-none cursor-pointer pr-1"
+              className="text-xs bg-transparent border-none font-bold text-slate-800 outline-none cursor-pointer pr-1 w-full sm:w-auto truncate"
             >
               <option value="current">Bulan Ini (Aktif)</option>
               <option value="all">Semua Riwayat (Tanpa Filter)</option>
@@ -173,19 +173,19 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                   alert('🔒 Tutup buku bulan ini berhasil dilakukan! Saldo awal bulan baru berlanjut otomatis.');
                 }
               }}
-              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+              className="px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs whitespace-nowrap"
               title="Pisahkan & Arsipkan Catatan Bulan Ini"
             >
-              <span>🔒 Tutup Buku Bulan Ini</span>
+              <span>🔒 Tutup Buku</span>
             </button>
           )}
         </div>
       </div>
 
       {/* Filter Row: Search, Type, Category */}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2 pt-1">
         {/* Search */}
-        <div className="relative flex-1 sm:w-48">
+        <div className="relative flex-1 min-w-0 sm:min-w-[160px]">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -196,22 +196,23 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           />
         </div>
 
-        {/* Type Filter */}
-        <select
-          value={selectedType}
-          onChange={(e) => setSelectedType(e.target.value as any)}
-          className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-semibold text-slate-700 outline-none cursor-pointer"
-        >
-          <option value="all">Semua Jenis</option>
-          <option value="cash_in">Pemasukan (Cash In)</option>
-          <option value="cash_out">Pengeluaran (Cash Out)</option>
-        </select>
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+          {/* Type Filter */}
+          <select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value as any)}
+            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-semibold text-slate-700 outline-none cursor-pointer w-full"
+          >
+            <option value="all">Semua Jenis</option>
+            <option value="cash_in">Pemasukan (+)</option>
+            <option value="cash_out">Pengeluaran (-)</option>
+          </select>
 
           {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-semibold text-slate-700 outline-none cursor-pointer max-w-[140px]"
+            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-semibold text-slate-700 outline-none cursor-pointer w-full sm:max-w-[140px]"
           >
             <option value="all">Semua Kategori</option>
             {categories.map((c) => (
@@ -221,6 +222,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             ))}
           </select>
         </div>
+      </div>
 
       {/* Transaction List Grouped by Date */}
       {sortedDates.length === 0 ? (
@@ -247,17 +249,17 @@ export const TransactionList: React.FC<TransactionListProps> = ({
               <div key={dateStr} className="space-y-2">
                 
                 {/* Date Group Header */}
-                <div className="flex items-center justify-between bg-slate-100/80 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 border border-slate-200/60">
+                <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1 bg-slate-100/80 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 border border-slate-200/60">
                   <div className="flex items-center space-x-2">
-                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{formatDateIndonesian(dateStr)}</span>
+                    <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span className="truncate">{formatDateIndonesian(dateStr)}</span>
                   </div>
-                  <div className="flex items-center space-x-3 text-[11px]">
+                  <div className="flex items-center space-x-2 sm:space-x-3 text-[10px] sm:text-[11px] shrink-0">
                     {dayCashIn > 0 && (
-                      <span className="text-emerald-700">Masuk: +{formatRupiah(dayCashIn)}</span>
+                      <span className="text-emerald-700 font-bold whitespace-nowrap">+{formatRupiah(dayCashIn)}</span>
                     )}
                     {dayCashOut > 0 && (
-                      <span className="text-rose-700">Keluar: -{formatRupiah(dayCashOut)}</span>
+                      <span className="text-rose-700 font-bold whitespace-nowrap">-{formatRupiah(dayCashOut)}</span>
                     )}
                   </div>
                 </div>

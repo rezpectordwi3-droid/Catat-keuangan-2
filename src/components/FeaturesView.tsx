@@ -1,5 +1,21 @@
 import React from 'react';
-import { Sparkles, FileSpreadsheet, ShieldCheck, Wallet, Bell, Lock, RefreshCw, Layers, ArrowUpRight, CheckCircle2, MessageSquare, CreditCard, Printer } from 'lucide-react';
+import {
+  Sparkles,
+  FileSpreadsheet,
+  ShieldCheck,
+  Wallet,
+  Bell,
+  Lock,
+  RefreshCw,
+  Layers,
+  ArrowUpRight,
+  CheckCircle2,
+  MessageSquare,
+  CreditCard,
+  Printer,
+  Receipt,
+  Activity,
+} from 'lucide-react';
 
 interface FeaturesViewProps {
   onOpenSync: () => void;
@@ -8,6 +24,8 @@ interface FeaturesViewProps {
   onOpenAccounts: () => void;
   onOpenExport: () => void;
   onOpenPinModal: () => void;
+  onOpenBills?: () => void;
+  onOpenHealth?: () => void;
 }
 
 export const FeaturesView: React.FC<FeaturesViewProps> = ({
@@ -17,8 +35,30 @@ export const FeaturesView: React.FC<FeaturesViewProps> = ({
   onOpenAccounts,
   onOpenExport,
   onOpenPinModal,
+  onOpenBills,
+  onOpenHealth,
 }) => {
   const featuresList = [
+    {
+      id: 'financial-health',
+      title: 'Skor Kesehatan Finansial & Diagnostik Cerdas',
+      description: 'Penilaian otomatis stabilitas kas (0-100), margin keuntungan bersih, efisiensi beban biaya operasional, dan simulator potensi laba.',
+      icon: Activity,
+      badge: 'Fitur Baru Unggulan',
+      badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+      actionText: 'Buka Skor Finansial',
+      action: onOpenHealth || onOpenCategories,
+    },
+    {
+      id: 'recurring-bills',
+      title: 'Jadwal Tagihan & Pengeluaran Rutin Warung',
+      description: 'Kelola jadwal listrik/token PLN, sewa kios, WiFi kasir, cicilan modal, dan gaji karyawan dengan tombol 1-klik bayar langsung catat.',
+      icon: Receipt,
+      badge: 'Fitur Baru Unggulan',
+      badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold',
+      actionText: 'Buka Jadwal Tagihan',
+      action: onOpenBills || onOpenCategories,
+    },
     {
       id: 'cloud-sync',
       title: 'Sinkronisasi Google Sheets & Cloud Auto-Backup',
@@ -80,6 +120,7 @@ export const FeaturesView: React.FC<FeaturesViewProps> = ({
       action: onOpenPinModal,
     },
   ];
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">

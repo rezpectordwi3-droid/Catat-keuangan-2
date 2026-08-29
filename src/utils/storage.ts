@@ -1,5 +1,5 @@
-import { Transaction, Category, AccountInfo, SyncSettings, DailyBalance, DebtItem } from '../types';
-import { DEFAULT_CATEGORIES, INITIAL_ACCOUNTS, INITIAL_SYNC_SETTINGS, INITIAL_TRANSACTIONS, DEFAULT_OPEN_BALANCE } from '../data/initialData';
+import { Transaction, Category, AccountInfo, SyncSettings, DailyBalance, DebtItem, BillItem, FinancialHealthMetrics } from '../types';
+import { DEFAULT_CATEGORIES, INITIAL_ACCOUNTS, INITIAL_SYNC_SETTINGS, INITIAL_TRANSACTIONS, DEFAULT_OPEN_BALANCE, INITIAL_BILLS } from '../data/initialData';
 
 const KEYS = {
   TRANSACTIONS: 'catat_keuangan_transactions_v1',
@@ -9,7 +9,26 @@ const KEYS = {
   OPEN_BALANCE: 'catat_keuangan_open_balance_v1',
   DEBTS: 'catat_keuangan_debts_v1',
   PIN_CODE: 'catat_keuangan_pin_v1',
+  BILLS: 'catat_keuangan_bills_v1',
 };
+
+export const loadStoredBills = (): BillItem[] => {
+  try {
+    const data = localStorage.getItem(KEYS.BILLS);
+    return data ? JSON.parse(data) : INITIAL_BILLS;
+  } catch (e) {
+    return INITIAL_BILLS;
+  }
+};
+
+export const saveBills = (bills: BillItem[]) => {
+  try {
+    localStorage.setItem(KEYS.BILLS, JSON.stringify(bills));
+  } catch (e) {
+    console.error('Failed saving bills', e);
+  }
+};
+
 
 export const loadStoredDebts = (): DebtItem[] => {
   try {
@@ -66,27 +85,97 @@ export const sanitizeTimeString = (rawTime?: any): string => {
   return '12:00';
 };
 
-// Helper to sanitize date string (fix "1899" or invalid dates)
+// Helper to sanitize date string (handles ISO YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, Excel dates, etc.)
 export const sanitizeDateString = (rawDate?: any): string => {
   if (!rawDate) return new Date().toISOString().slice(0, 10);
   const str = String(rawDate).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    // Check for corrupt 2001 or 1899/1900 dates
-    if (str.startsWith('1899') || str.startsWith('1900') || str.startsWith('2001')) {
-      return new Date().toISOString().slice(0, 10);
+  if (!str) return new Date().toISOString().slice(0, 10);
+
+  // 1. ISO format YYYY-MM-DD or with time (e.g., 2026-08-13, 2026-08-13T10:30:00)
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const yyyy = parseInt(isoMatch[1], 10);
+    const mm = String(parseInt(isoMatch[2], 10)).padStart(2, '0');
+    const dd = String(parseInt(isoMatch[3], 10)).padStart(2, '0');
+    if (yyyy >= 2015 && yyyy <= 2040 && parseInt(mm, 10) >= 1 && parseInt(mm, 10) <= 12 && parseInt(dd, 10) >= 1 && parseInt(dd, 10) <= 31) {
+      return `${yyyy}-${mm}-${dd}`;
     }
-    return str;
   }
+
+  // 2. Format YYYY/MM/DD
+  const ymdMatch = str.match(/^(\d{4})[\/\.](\d{1,2})[\/\.](\d{1,2})/);
+  if (ymdMatch) {
+    const yyyy = parseInt(ymdMatch[1], 10);
+    const mm = String(parseInt(ymdMatch[2], 10)).padStart(2, '0');
+    const dd = String(parseInt(ymdMatch[3], 10)).padStart(2, '0');
+    if (yyyy >= 2015 && yyyy <= 2040 && parseInt(mm, 10) >= 1 && parseInt(mm, 10) <= 12 && parseInt(dd, 10) >= 1 && parseInt(dd, 10) <= 31) {
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  // 3. Indonesian / International format DD/MM/YYYY, DD-MM-YYYY, or DD.MM.YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+  if (dmyMatch) {
+    const p1 = parseInt(dmyMatch[1], 10);
+    const p2 = parseInt(dmyMatch[2], 10);
+    const yyyy = parseInt(dmyMatch[3], 10);
+    // If p1 <= 31 and p2 <= 12 -> DD/MM/YYYY
+    if (p1 >= 1 && p1 <= 31 && p2 >= 1 && p2 <= 12) {
+      const dd = String(p1).padStart(2, '0');
+      const mm = String(p2).padStart(2, '0');
+      if (yyyy >= 2015 && yyyy <= 2040) {
+        return `${yyyy}-${mm}-${dd}`;
+      }
+    }
+    // If p1 <= 12 and p2 <= 31 -> MM/DD/YYYY
+    if (p1 >= 1 && p1 <= 12 && p2 >= 1 && p2 <= 31) {
+      const mm = String(p1).padStart(2, '0');
+      const dd = String(p2).padStart(2, '0');
+      if (yyyy >= 2015 && yyyy <= 2040) {
+        return `${yyyy}-${mm}-${dd}`;
+      }
+    }
+  }
+
+  // 4. Short year format DD/MM/YY (e.g. 13/08/26)
+  const dmyShortMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
+  if (dmyShortMatch) {
+    const dd = String(parseInt(dmyShortMatch[1], 10)).padStart(2, '0');
+    const mm = String(parseInt(dmyShortMatch[2], 10)).padStart(2, '0');
+    const yy = parseInt(dmyShortMatch[3], 10);
+    const yyyy = yy < 50 ? 2000 + yy : 1900 + yy;
+    if (yyyy >= 2015 && yyyy <= 2040) {
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  // 5. Excel serial date number (e.g. 45518 approx 2024)
+  if (/^\d{5}$/.test(str)) {
+    const serial = parseInt(str, 10);
+    if (serial > 35000 && serial < 60000) {
+      const utc_days = Math.floor(serial - 25569);
+      const utc_value = utc_days * 86400;
+      const date_info = new Date(utc_value * 1000);
+      const yyyy = date_info.getUTCFullYear();
+      const mm = String(date_info.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(date_info.getUTCDate()).padStart(2, '0');
+      if (yyyy >= 2015 && yyyy <= 2040) {
+        return `${yyyy}-${mm}-${dd}`;
+      }
+    }
+  }
+
+  // 6. Standard JS Date parser
   const parsed = new Date(rawDate);
   if (!isNaN(parsed.getTime())) {
     const yyyy = parsed.getFullYear();
-    if (yyyy < 2010 || yyyy > 2035) {
-      return new Date().toISOString().slice(0, 10);
+    if (yyyy >= 2015 && yyyy <= 2040) {
+      const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+      const dd = String(parsed.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     }
-    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
-    const dd = String(parsed.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
   }
+
   return new Date().toISOString().slice(0, 10);
 };
 
@@ -104,20 +193,17 @@ export const sanitizeAmount = (rawAmount: any): number => {
 };
 
 export const sanitizeTransaction = (tx: any): Transaction => {
-  let cleanDate = sanitizeDateString(tx.date);
-  if (cleanDate.startsWith('2001') || cleanDate.startsWith('1899') || cleanDate.startsWith('1900')) {
-    cleanDate = new Date().toISOString().slice(0, 10);
-  }
+  const cleanDate = sanitizeDateString(tx.date || tx.tanggal);
   return {
     id: String(tx.id || `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
     date: cleanDate,
-    time: sanitizeTimeString(tx.time),
+    time: sanitizeTimeString(tx.time || tx.jam),
     type: tx.type === 'cash_in' ? 'cash_in' : 'cash_out',
     categoryId: String(tx.categoryId || (tx.type === 'cash_in' ? 'cat-penjualan' : 'cat-stok')),
-    categoryName: String(tx.categoryName || (tx.type === 'cash_in' ? 'Penjualan / Omset Warung' : 'Belanja Stok Grosir')),
-    amount: sanitizeAmount(tx.amount),
-    account: String(tx.account || 'cash') as any,
-    notes: String(tx.notes || ''),
+    categoryName: String(tx.categoryName || tx.kategori || (tx.type === 'cash_in' ? 'Penjualan / Omset Warung' : 'Belanja Stok Grosir')),
+    amount: sanitizeAmount(tx.amount || tx.nominal || tx.jumlah),
+    account: String(tx.account || tx.akun || 'cash') as any,
+    notes: String(tx.notes || tx.catatan || ''),
     createdAt: typeof tx.createdAt === 'number' && tx.createdAt < 2000000000000 ? tx.createdAt : Date.now(),
   };
 };
@@ -464,6 +550,141 @@ export const calculateCarriedOpenBalance = (
     }
   });
 
-  return cleanBase + priorIn - priorOut;
+  return cleanBase + (priorIn - priorOut);
 };
+
+// Calculate comprehensive Financial Health Metrics (Financify-grade diagnostics)
+export const calculateFinancialHealthMetrics = (
+  transactions: Transaction[],
+  currentTotalBalance: number,
+  debts: DebtItem[] = [],
+  bills: BillItem[] = []
+): FinancialHealthMetrics => {
+  const cleanBalance = Math.max(0, currentTotalBalance);
+
+  // Consider transactions in the last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
+
+  const recentTxs = transactions.filter((t) => (t.date || '').slice(0, 10) >= thirtyDaysAgoStr);
+  const relevantTxs = recentTxs.length >= 3 ? recentTxs : transactions;
+
+  const totalIn = relevantTxs.filter((t) => t.type === 'cash_in').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
+  const totalOut = relevantTxs.filter((t) => t.type === 'cash_out').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
+
+  const netProfit = totalIn - totalOut;
+  const profitMargin = totalIn > 0 ? Math.round((netProfit / totalIn) * 100) : 0;
+  const expenseRatio = totalIn > 0 ? Math.round((totalOut / totalIn) * 100) : (totalOut > 0 ? 100 : 0);
+
+  const avgDailyExpense = Math.max(1, Math.round(totalOut / Math.max(1, Math.min(30, relevantTxs.length || 1))));
+  const cashRunwayDays = avgDailyExpense > 0 ? Math.round(cleanBalance / avgDailyExpense) : 30;
+
+  const unpaidReceivables = debts.filter((d) => d.type === 'receivable' && d.status === 'unpaid').reduce((s, d) => s + sanitizeAmount(d.amount), 0);
+  const debtRiskRatio = cleanBalance > 0 ? Math.round((unpaidReceivables / cleanBalance) * 100) : (unpaidReceivables > 0 ? 100 : 0);
+
+  // Score Calculation (Max 100)
+  let score = 0;
+
+  // 1. Margin & Profit (Max 30 pts)
+  if (profitMargin >= 30) score += 30;
+  else if (profitMargin >= 20) score += 25;
+  else if (profitMargin >= 10) score += 18;
+  else if (profitMargin > 0) score += 10;
+  else score += 2;
+
+  // 2. Expense Ratio (Max 25 pts)
+  if (expenseRatio <= 65) score += 25;
+  else if (expenseRatio <= 80) score += 18;
+  else if (expenseRatio <= 95) score += 10;
+  else score += 2;
+
+  // 3. Cash Runway (Max 25 pts)
+  if (cashRunwayDays >= 30) score += 25;
+  else if (cashRunwayDays >= 14) score += 18;
+  else if (cashRunwayDays >= 7) score += 10;
+  else score += 3;
+
+  // 4. Debt & Kasbon Control (Max 20 pts)
+  if (debtRiskRatio <= 10) score += 20;
+  else if (debtRiskRatio <= 25) score += 14;
+  else if (debtRiskRatio <= 40) score += 8;
+  else score += 2;
+
+  // Boundaries
+  score = Math.max(10, Math.min(100, score));
+
+  // Determine Status
+  let status: 'excellent' | 'good' | 'warning' | 'critical' = 'good';
+  let statusLabel = 'Sehat & Terkendali';
+
+  if (score >= 85) {
+    status = 'excellent';
+    statusLabel = 'Sangat Sehat (Prima)';
+  } else if (score >= 70) {
+    status = 'good';
+    statusLabel = 'Sehat & Stabil';
+  } else if (score >= 50) {
+    status = 'warning';
+    statusLabel = 'Waspada (Perlu Penghematan)';
+  } else {
+    status = 'critical';
+    statusLabel = 'Kritis (Defisit / Arus Kas Rendah)';
+  }
+
+  // Generate Strengths & Recommendations
+  const strengths: string[] = [];
+  const recommendations: string[] = [];
+
+  if (profitMargin > 15) {
+    strengths.push(`Margin keuntungan bersih positif di angka ${profitMargin}%`);
+  }
+  if (expenseRatio <= 75 && totalIn > 0) {
+    strengths.push(`Beban pengeluaran terkendali rapi di bawah 75% dari pemasukan (${expenseRatio}%)`);
+  }
+  if (cashRunwayDays >= 14) {
+    strengths.push(`Ketahanan saldo kas aman untuk operasional ${cashRunwayDays} hari ke depan`);
+  }
+  if (debtRiskRatio < 15) {
+    strengths.push('Kasbon pelanggan terkontrol baik dan tidak membebani arus kas');
+  }
+
+  if (strengths.length === 0) {
+    strengths.push('Catatan transaksi mulai terdata dengan teratur');
+  }
+
+  if (expenseRatio > 85) {
+    recommendations.push('Kurangi belanja non-esensial atau negosiasikan harga grosir dengan suplier');
+  }
+  if (cashRunwayDays < 10) {
+    recommendations.push('Sisihkan minimal 10% omset harian ke rekening tabungan dana darurat warung');
+  }
+  if (unpaidReceivables > 200000) {
+    recommendations.push(`Kirim pengingat tagih kasbon ke pelanggan yang memiliki total piutang tertahan`);
+  }
+  const upcomingBills = bills.filter((b) => b.status === 'unpaid');
+  if (upcomingBills.length > 0) {
+    recommendations.push(`Siapkan dana untuk ${upcomingBills.length} jadwal tagihan rutin sebelum tanggal jatuh tempo`);
+  }
+  if (profitMargin < 10) {
+    recommendations.push('Tingkatkan promosi produk bermargin tinggi untuk mempertebal keuntungan bersih');
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push('Pertahankan disiplin pencatatan harian dan rutinitas tutup buku tiap akhir bulan');
+  }
+
+  return {
+    score,
+    status,
+    statusLabel,
+    profitMargin,
+    expenseRatio,
+    cashRunwayDays,
+    debtRiskRatio,
+    strengths,
+    recommendations,
+  };
+};
+
 

@@ -1,6 +1,6 @@
 {
   "name": "Pencatat Pengeluaran Harian",
-  "description": "Aplikasi pencatatan pengeluaran \u0026 pemasukan harian dengan analisis mingguan/bulanan, sinkronisasi Google Sheets/Cloud, dan input intuitif.",
+  "description": "Aplikasi pencatatan kas warung & pengeluaran harian dengan skor kesehatan finansial, jadwal tagihan rutin, buku kasbon pelanggan, analisis keuangan, dan sinkronisasi cloud.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

@@ -77,7 +77,7 @@ export const AccountsManager: React.FC<AccountsManagerProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <div className="space-y-6 animate-fade-in w-full max-w-full">
       
       {/* Top Banner */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">

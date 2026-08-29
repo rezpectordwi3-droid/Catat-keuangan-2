@@ -9,6 +9,8 @@ interface QuickAddModalProps {
   categories: Category[];
   onSaveTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
   editingTransaction?: Transaction | null;
+  initialType?: TransactionType;
+  initialAmount?: number;
 }
 
 export const QuickAddModal: React.FC<QuickAddModalProps> = ({
@@ -17,10 +19,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   categories,
   onSaveTransaction,
   editingTransaction,
+  initialType = 'cash_out',
+  initialAmount = 0,
 }) => {
-  const [type, setType] = useState<TransactionType>('cash_out');
-  const [amount, setAmount] = useState<number>(0);
-  const [amountInput, setAmountInput] = useState<string>('');
+  const [type, setType] = useState<TransactionType>(initialType);
+  const [amount, setAmount] = useState<number>(initialAmount);
+  const [amountInput, setAmountInput] = useState<string>(initialAmount > 0 ? String(initialAmount) : '');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [account, setAccount] = useState<PaymentAccount>('cash');
   const [date, setDate] = useState<string>(getTodayDateString());
@@ -42,8 +46,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       setNotes(editingTransaction.notes || '');
     } else {
       resetForm();
+      if (initialType) {
+        setType(initialType);
+      }
+      if (initialAmount && initialAmount > 0) {
+        setAmount(initialAmount);
+        setAmountInput(String(initialAmount));
+      }
     }
-  }, [editingTransaction, isOpen]);
+  }, [editingTransaction, isOpen, initialType, initialAmount]);
 
   // Set default category when type changes
   useEffect(() => {

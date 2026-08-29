@@ -35,16 +35,16 @@ export const BalanceSummaryCards: React.FC<BalanceSummaryCardsProps> = ({
   return (
     <div className="space-y-4">
       {/* Time Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/80 shadow-xs w-full">
         <div className="flex items-center space-x-2 text-slate-700 text-xs sm:text-sm font-semibold">
           <Calendar className="w-4 h-4 text-slate-500" />
           <span>Periode Tampilan:</span>
         </div>
 
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl space-x-1">
+        <div className="grid grid-cols-4 sm:flex sm:items-center bg-slate-100 p-1 rounded-xl gap-1 w-full sm:w-auto">
           <button
             onClick={() => setTimeFilter('today')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`py-1.5 sm:px-3 sm:py-1 rounded-lg text-xs font-semibold text-center transition cursor-pointer ${
               timeFilter === 'today' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -52,23 +52,23 @@ export const BalanceSummaryCards: React.FC<BalanceSummaryCardsProps> = ({
           </button>
           <button
             onClick={() => setTimeFilter('week')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`py-1.5 sm:px-3 sm:py-1 rounded-lg text-xs font-semibold text-center transition cursor-pointer ${
               timeFilter === 'week' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Minggu Ini
+            Minggu
           </button>
           <button
             onClick={() => setTimeFilter('month')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`py-1.5 sm:px-3 sm:py-1 rounded-lg text-xs font-semibold text-center transition cursor-pointer ${
               timeFilter === 'month' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Bulan Ini
+            Bulan
           </button>
           <button
             onClick={() => setTimeFilter('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`py-1.5 sm:px-3 sm:py-1 rounded-lg text-xs font-semibold text-center transition cursor-pointer ${
               timeFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
