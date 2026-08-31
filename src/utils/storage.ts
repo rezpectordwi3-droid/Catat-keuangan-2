@@ -307,7 +307,8 @@ export const saveSyncSettings = (settings: SyncSettings) => {
 export const calculateBalanceSummary = (
   allTransactions: Transaction[],
   baseOpenBalance: number,
-  period: 'today' | 'week' | 'month' | 'all' = 'today'
+  period: 'today' | 'week' | 'month' | 'all' = 'today',
+  closedMonths: string[] = []
 ) => {
   const cleanBaseOpen = sanitizeAmount(baseOpenBalance);
 
@@ -359,10 +360,13 @@ export const calculateBalanceSummary = (
 
   allTransactions.forEach((t) => {
     const txDate = (t.date || '').slice(0, 10);
+    const txMonth = txDate.slice(0, 7);
     const amt = sanitizeAmount(t.amount);
     if (txDate < startDateLimit) {
-      if (t.type === 'cash_in') priorCashIn += amt;
-      else if (t.type === 'cash_out') priorCashOut += amt;
+      if (!closedMonths.includes(txMonth)) {
+        if (t.type === 'cash_in') priorCashIn += amt;
+        else if (t.type === 'cash_out') priorCashOut += amt;
+      }
     } else {
       if (t.type === 'cash_in') currentCashIn += amt;
       else if (t.type === 'cash_out') currentCashOut += amt;

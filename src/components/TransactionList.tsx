@@ -163,16 +163,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           </div>
 
           {/* Tutup Buku Button */}
-          {onCloseCurrentMonth && (
+          {onCloseCurrentMonth && !closedMonths.includes(currentMonthStr) && (
             <button
               onClick={() => {
                 if (
                   confirm(
-                    `Apakah Anda yakin ingin melakukan Tutup Buku untuk bulan ini? \n\nRiwayat bulan ini akan diarsipkan secara rapi. Halaman akan siap mencatat transaksi bulan baru, dan Saldo Akhir bulan ini otomatis berlanjut menjadi Saldo Awal (Open Balance) bulan depan.`
+                    `Apakah Anda yakin ingin melakukan Tutup Buku untuk bulan ini?\n\n- Catatan bulan ini akan DIKUNCI dan diarsipkan ke Riwayat.\n- Total Saldo saat ini akan otomatis dipindahkan ke dalam brankas "Multi-Kas".\n- Tampilan depan akan kosong (dimulai dari nol) untuk bulan baru agar Anda dapat memasukkan Saldo Awal sendiri.`
                   )
                 ) {
                   onCloseCurrentMonth();
-                  alert('🔒 Tutup buku bulan ini berhasil dilakukan! Saldo awal bulan baru berlanjut otomatis.');
+                  alert('🔒 Tutup buku berhasil! Saldo bulan ini telah diamankan di Multi-Kas. Layar transaksi kini bersih untuk memulai bulan baru.');
                 }
               }}
               className="px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs whitespace-nowrap"
@@ -180,6 +180,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             >
               <span>🔒 Tutup Buku</span>
             </button>
+          )}
+          {onCloseCurrentMonth && closedMonths.includes(currentMonthStr) && (
+            <span className="px-2.5 sm:px-3 py-1.5 bg-slate-100 text-slate-500 text-xs font-bold rounded-xl flex items-center space-x-1.5 border border-slate-200">
+               <span>🔒 Bulan Ini Ditutup</span>
+            </span>
           )}
         </div>
       </div>

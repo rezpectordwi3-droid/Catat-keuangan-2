@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { X, Printer, Download } from 'lucide-react';
-import { Transaction, KasbonItem, FinancialHealthMetrics } from '../types';
+import { Transaction, DebtItem, FinancialHealthMetrics } from '../types';
 import { formatRupiah, formatDateIndonesian } from '../utils/formatters';
 
 interface PrintReceiptModalProps {

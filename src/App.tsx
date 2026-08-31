@@ -165,6 +165,9 @@ export default function App() {
       const updated = [...closedMonths, currentMonth];
       setClosedMonths(updated);
       saveClosedMonths(updated);
+      // Reset open balance so next month starts completely from 0
+      setOpenBalance(0);
+      saveOpenBalance(0);
     }
     setSelectedMonthFilter('current');
   };
@@ -261,7 +264,7 @@ export default function App() {
     saveCategories(newCatList);
   };
 
-  const summary = calculateBalanceSummary(transactions, openBalance, timeFilter);
+  const summary = calculateBalanceSummary(transactions, openBalance, timeFilter, closedMonths);
   const healthMetrics = calculateFinancialHealthMetrics(transactions, summary.totalBalance, debts, bills);
   const unpaidBillsCount = bills.filter((b) => b.status === 'unpaid').length;
 
@@ -281,6 +284,12 @@ export default function App() {
 
   // Add / Edit Transaction
   const handleSaveTransaction = (txData: Omit<Transaction, 'id' | 'createdAt'>) => {
+    const txMonth = (txData.date || '').slice(0, 7);
+    if (closedMonths.includes(txMonth)) {
+      alert(`Bulan ${txMonth} sudah ditutup buku. Anda tidak bisa menambah/mengubah transaksi di bulan yang sudah diarsipkan.`);
+      return;
+    }
+
     let savedTx: Transaction;
     if (editingTransaction) {
       // Update
@@ -310,6 +319,14 @@ export default function App() {
 
   // Delete Transaction
   const handleDeleteTransaction = (id: string) => {
+    const tx = transactions.find(t => t.id === id);
+    if (tx) {
+      const txMonth = (tx.date || '').slice(0, 7);
+      if (closedMonths.includes(txMonth)) {
+        alert(`Bulan ${txMonth} sudah ditutup buku. Data tidak bisa dihapus.`);
+        return;
+      }
+    }
     const updated = transactions.filter((t) => t.id !== id);
     handleSaveTransactions(updated);
     if (currentUser) {
@@ -360,6 +377,49 @@ export default function App() {
     setIsQuickAddOpen(true);
   };
 
+  const _today = new Date();
+  const isEndOfMonth = _today.getDate() >= 28;
+  const currentMonthStr = _today.toISOString().slice(0, 7);
+  const showEndOfMonthReminder = isEndOfMonth && !closedMonths.includes(currentMonthStr);
+
+  // Tarik Dana dari Multi-Kas
+  const handleWithdrawAccount = (accId: string, amount: number, notes: string) => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mins = String(d.getMinutes()).padStart(2, '0');
+
+    // Make sure we have a category for Withdrawals (if not, create one)
+    let withdrawalCat = categories.find(c => c.name.toLowerCase().includes('tarik') || c.name.toLowerCase().includes('prive'));
+    if (!withdrawalCat) {
+      withdrawalCat = {
+        id: `cat_withdraw_${Date.now()}`,
+        name: 'Tarik Dana / Prive',
+        type: 'cash_out',
+        icon: 'Wallet',
+        color: 'bg-rose-500'
+      };
+      const newCats = [...categories, withdrawalCat];
+      setCategories(newCats);
+      saveCategories(newCats);
+    }
+
+    const tx: Omit<Transaction, 'id' | 'createdAt'> = {
+      date: `${yyyy}-${mm}-${dd}`,
+      time: `${hh}:${mins}`,
+      type: 'cash_out',
+      amount,
+      categoryId: withdrawalCat.id,
+      categoryName: withdrawalCat.name,
+      account: accId as any,
+      notes,
+    };
+    handleSaveTransaction(tx);
+    alert('Dana berhasil ditarik dan dicatat sebagai pengeluaran.');
+  };
+
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-100/70 text-slate-800 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900 pb-24 sm:pb-20">
       
@@ -387,6 +447,23 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             
+            {showEndOfMonthReminder && (
+              <div className="bg-amber-100 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in">
+                <div>
+                  <h3 className="text-sm font-bold text-amber-900">Akhir Bulan Tiba! Waktunya Tutup Buku</h3>
+                  <p className="text-xs text-amber-800 mt-1">
+                    Simpan dan arsipkan catatan transaksi bulan ini. Total saldo akan otomatis diamankan ke dalam Multi-Kas, dan tampilan depan akan bersih (dimulai dari nol) untuk bulan baru.
+                  </p>
+                </div>
+                <button
+                  onClick={handleCloseCurrentMonth}
+                  className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-md hover:bg-slate-800 transition"
+                >
+                  🔒 Tutup Buku Sekarang
+                </button>
+              </div>
+            )}
+
             {/* New Welcome Overview Gateway & Fast Launcher */}
             <WelcomeOverviewGateway
               currentUser={currentUser}
@@ -469,6 +546,7 @@ export default function App() {
             accounts={accounts}
             transactions={transactions}
             onSaveAccounts={handleSaveAccounts}
+            onWithdraw={handleWithdrawAccount}
           />
         )}
 

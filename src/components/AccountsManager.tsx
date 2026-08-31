@@ -2,21 +2,27 @@ import React, { useState } from 'react';
 import { AccountInfo, Transaction } from '../types';
 import { formatRupiah, formatCompactRupiah } from '../utils/formatters';
 import { sanitizeAmount } from '../utils/storage';
-import { Wallet, Building2, Smartphone, CreditCard, ArrowRightLeft, Edit2, Plus, CheckCircle2 } from 'lucide-react';
+import { Wallet, Building2, Smartphone, CreditCard, ArrowRightLeft, Edit2, Plus, CheckCircle2, ArrowDownCircle, X } from 'lucide-react';
 
 interface AccountsManagerProps {
   accounts: AccountInfo[];
   transactions: Transaction[];
   onSaveAccounts: (updatedAccounts: AccountInfo[]) => void;
+  onWithdraw?: (accId: string, amount: number, notes: string) => void;
 }
 
 export const AccountsManager: React.FC<AccountsManagerProps> = ({
   accounts,
   transactions,
   onSaveAccounts,
+  onWithdraw,
 }) => {
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editBalanceInput, setEditBalanceInput] = useState<string>('');
+  
+  const [withdrawAccountId, setWithdrawAccountId] = useState<string | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState<string>('');
+  const [withdrawNotes, setWithdrawNotes] = useState<string>('Tarik Dana / Prive');
 
   // Calculate real-time balance for each account based on transactions
   const getAccountStats = (accId: string) => {
@@ -121,13 +127,26 @@ export const AccountsManager: React.FC<AccountsManagerProps> = ({
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleStartEdit(acc)}
-                  className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-                  title="Sesuaikan Saldo Awal"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => {
+                      setWithdrawAccountId(acc.id);
+                      setWithdrawAmount('');
+                      setWithdrawNotes('Tarik Dana / Prive');
+                    }}
+                    className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                    title="Tarik Dana dari Kas ini"
+                  >
+                    <ArrowDownCircle className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleStartEdit(acc)}
+                    className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                    title="Sesuaikan Saldo Awal"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Balance display or Edit Form */}
@@ -172,6 +191,70 @@ export const AccountsManager: React.FC<AccountsManagerProps> = ({
 
       {/* ⚡ FITUR BARU: ALLOKASI OTOMATIS MULTI-KAS (6 POS) */}
       <MultiKasAutoAllocator totalOverallBalance={totalOverallBalance} />
+
+      {/* Withdrawal Modal */}
+      {withdrawAccountId && onWithdraw && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-800">Tarik Dana</h3>
+              <button
+                onClick={() => setWithdrawAccountId(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Jumlah Penarikan (Rp)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={withdrawAmount}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(/\D/g, '');
+                    setWithdrawAmount(formatRupiah(Number(clean)).replace('Rp', '').trim());
+                  }}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 font-bold text-xl"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Keterangan / Catatan</label>
+                <input
+                  type="text"
+                  value={withdrawNotes}
+                  onChange={(e) => setWithdrawNotes(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 text-sm"
+                  placeholder="Contoh: Prive Pemilik"
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button
+                onClick={() => setWithdrawAccountId(null)}
+                className="flex-1 py-3 font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  const amt = Number(withdrawAmount.replace(/\D/g, ''));
+                  if (amt > 0) {
+                    onWithdraw(withdrawAccountId, amt, withdrawNotes);
+                    setWithdrawAccountId(null);
+                  }
+                }}
+                className="flex-1 py-3 font-bold text-white bg-rose-600 rounded-xl hover:bg-rose-700 shadow-md shadow-rose-200 flex items-center justify-center gap-2"
+              >
+                <ArrowDownCircle className="w-4 h-4" />
+                Tarik
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
