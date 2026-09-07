@@ -132,7 +132,7 @@ export const FinancialHealthView: React.FC<FinancialHealthViewProps> = ({
           <div className="flex flex-col items-center text-center">
             <div className="relative flex items-center justify-center w-32 h-32 rounded-full bg-white/15 backdrop-blur-md border-4 border-white/30 shadow-2xl">
               <div className="text-center">
-                <span className="text-4xl sm:text-5xl font-black tracking-tight text-white">{metrics.score}</span>
+                <span className="text-4xl sm:text-5xl font-black tracking-tight text-white">{metrics.score === 0 ? '-' : metrics.score}</span>
                 <span className="block text-[11px] uppercase tracking-widest text-white/80 font-bold">/ 100</span>
               </div>
             </div>
@@ -146,11 +146,15 @@ export const FinancialHealthView: React.FC<FinancialHealthViewProps> = ({
             <div className="flex items-center justify-center md:justify-start gap-2">
               <Sparkles className="w-5 h-5 text-amber-300" />
               <h3 className="text-xl sm:text-2xl font-black">
-                {metrics.score >= 70 ? 'Kondisi Keuangan Sangat Prima!' : 'Keuangan Perlu Penyesuaian & Penghematan'}
+                {metrics.score === 0 
+                  ? 'Belum ada data untuk dianalisis' 
+                  : metrics.score >= 70 ? 'Kondisi Keuangan Sangat Prima!' : 'Keuangan Perlu Penyesuaian & Penghematan'}
               </h3>
             </div>
             <p className="text-xs sm:text-sm text-white/90 leading-relaxed max-w-xl font-medium">
-              Skor dihitung otomatis berdasarkan perputaran omset 30 hari terakhir, margin laba bersih ({metrics.profitMargin}%), rasio belanja operasional ({metrics.expenseRatio}%), dan estimasi ketahanan saldo kas Anda ({metrics.cashRunwayDays} hari).
+              {metrics.score === 0
+                ? 'Tambahkan minimal beberapa data pemasukan dan pengeluaran bulan ini untuk melihat analisis kesehatan keuangan warung Anda.'
+                : `Skor dihitung otomatis berdasarkan perputaran omset 30 hari terakhir, margin laba bersih (${metrics.profitMargin}%), rasio belanja operasional (${metrics.expenseRatio}%), dan estimasi ketahanan saldo kas Anda (${metrics.cashRunwayDays} hari).`}
             </p>
 
             {/* Quick Metrics Bar */}

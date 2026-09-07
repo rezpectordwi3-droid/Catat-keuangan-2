@@ -562,17 +562,35 @@ export const calculateFinancialHealthMetrics = (
   transactions: Transaction[],
   currentTotalBalance: number,
   debts: DebtItem[] = [],
-  bills: BillItem[] = []
+  bills: BillItem[] = [],
+  closedMonths: string[] = []
 ): FinancialHealthMetrics => {
   const cleanBalance = Math.max(0, currentTotalBalance);
+
+  // Filter out transactions that belong to closed months so score resets
+  const activeTransactions = transactions.filter(t => !closedMonths.includes((t.date || '').slice(0, 7)));
 
   // Consider transactions in the last 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const recentTxs = transactions.filter((t) => (t.date || '').slice(0, 10) >= thirtyDaysAgoStr);
-  const relevantTxs = recentTxs.length >= 3 ? recentTxs : transactions;
+  const recentTxs = activeTransactions.filter((t) => (t.date || '').slice(0, 10) >= thirtyDaysAgoStr);
+  const relevantTxs = recentTxs.length >= 3 ? recentTxs : activeTransactions;
+
+  if (relevantTxs.length === 0) {
+    return {
+      score: 0,
+      status: 'good',
+      statusLabel: 'Menunggu Data Baru',
+      profitMargin: 0,
+      expenseRatio: 0,
+      cashRunwayDays: 0,
+      debtRiskRatio: 0,
+      strengths: ['Belum ada transaksi di periode ini.'],
+      recommendations: ['Mulai catat pemasukan dan pengeluaran Anda untuk melihat analisis kesehatan keuangan.'],
+    };
+  }
 
   const totalIn = relevantTxs.filter((t) => t.type === 'cash_in').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
   const totalOut = relevantTxs.filter((t) => t.type === 'cash_out').reduce((s, t) => s + sanitizeAmount(t.amount), 0);

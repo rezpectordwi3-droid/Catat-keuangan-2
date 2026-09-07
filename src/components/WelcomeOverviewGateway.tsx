@@ -79,6 +79,13 @@ export const WelcomeOverviewGateway: React.FC<WelcomeOverviewGatewayProps> = ({
 
   // Health Score Color & Badge
   const getScoreBadge = () => {
+    if (healthMetrics.statusLabel === 'Menunggu Data Baru') {
+      return {
+        bg: 'bg-slate-500/10 text-slate-300 border-slate-500',
+        ring: 'text-slate-400',
+        label: 'Menunggu Data',
+      };
+    }
     if (healthMetrics.score >= 85) {
       return {
         bg: 'bg-emerald-500/10 text-emerald-700 border-emerald-300',
@@ -140,7 +147,7 @@ export const WelcomeOverviewGateway: React.FC<WelcomeOverviewGatewayProps> = ({
             className="flex items-center gap-4 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 p-3.5 sm:p-4 rounded-2xl cursor-pointer transition active:scale-98 backdrop-blur-md shadow-lg group"
           >
             <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xl shadow-md group-hover:scale-105 transition">
-              {healthMetrics.score}
+              {healthMetrics.score === 0 ? '-' : healthMetrics.score}
               <Activity className="w-3.5 h-3.5 absolute -top-1 -right-1 text-amber-300" />
             </div>
             <div>

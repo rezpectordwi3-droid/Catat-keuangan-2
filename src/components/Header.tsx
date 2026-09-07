@@ -187,7 +187,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500" />
               <span>Skor Finansial</span>
               <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800">
-                {healthScore}
+                {healthScore === 0 ? '-' : healthScore}
               </span>
             </button>
 

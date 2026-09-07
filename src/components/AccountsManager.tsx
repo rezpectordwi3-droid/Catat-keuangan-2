@@ -264,8 +264,9 @@ const MultiKasAutoAllocator: React.FC<{ totalOverallBalance: number }> = ({ tota
   const safeBalance = Math.max(0, sanitizeAmount(totalOverallBalance));
   const [totalToDivide, setTotalToDivide] = useState<number>(safeBalance || 10000000);
 
-  // Pos 1: Target Total Hutang 12 Bulan (Automatic monthly calculation = total / 12)
+  // Pos 1: Target Total Hutang (Automatic monthly calculation = total / months)
   const [totalDebtTarget, setTotalDebtTarget] = useState<number>(12000000);
+  const [debtDurationMonths, setDebtDurationMonths] = useState<number>(12);
 
   // Pos 2 & 3: Nominal Tetap (Direct Inputs in Rp)
   const [salaryNominal, setSalaryNominal] = useState<number>(2500000);     // Pos 2: Gaji & Operasional
@@ -286,7 +287,7 @@ const MultiKasAutoAllocator: React.FC<{ totalOverallBalance: number }> = ({ tota
   };
 
   const safeTotalToDivide = Math.max(0, sanitizeAmount(totalToDivide));
-  const monthlyDebtTarget = Math.round(totalDebtTarget / 12);
+  const monthlyDebtTarget = debtDurationMonths > 0 ? Math.round(totalDebtTarget / debtDurationMonths) : totalDebtTarget;
   const totalFixedExpenses = monthlyDebtTarget + salaryNominal + utilitiesNominal;
   const remainingCash = Math.max(0, safeTotalToDivide - totalFixedExpenses);
 
@@ -359,7 +360,7 @@ const MultiKasAutoAllocator: React.FC<{ totalOverallBalance: number }> = ({ tota
       {/* 6 Pos Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         
-        {/* POS 1: Target Bayar Hutang (12 Bulan) */}
+        {/* POS 1: Target Bayar Hutang Lama */}
         <div className="p-4 rounded-2xl border bg-rose-50 border-rose-200 space-y-3 shadow-2xs flex flex-col justify-between">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -367,21 +368,32 @@ const MultiKasAutoAllocator: React.FC<{ totalOverallBalance: number }> = ({ tota
                 POS 1
               </span>
               <span className="text-[10px] font-bold text-rose-700 bg-white px-2 py-0.5 rounded border border-rose-200">
-                Target 12 Bulan
+                Cicilan Bulanan
               </span>
             </div>
 
-            <h4 className="font-bold text-slate-900 text-sm">Target Bayar Hutang (12 Bulan)</h4>
-            <p className="text-[11px] text-slate-600">Pelunasan hutang toko dibagi rata 12 bulan</p>
+            <h4 className="font-bold text-slate-900 text-sm">Target Bayar Hutang</h4>
+            <p className="text-[11px] text-slate-600">Pelunasan hutang toko dibagi berdasarkan durasi bulan</p>
 
-            <div>
-              <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Total Target Hutang (Rp):</label>
-              <input
-                type="number"
-                value={totalDebtTarget || ''}
-                onChange={(e) => setTotalDebtTarget(Math.max(0, Number(e.target.value)))}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
-              />
+            <div className="flex space-x-2">
+              <div className="flex-1">
+                <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Total Target Hutang (Rp):</label>
+                <input
+                  type="number"
+                  value={totalDebtTarget || ''}
+                  onChange={(e) => setTotalDebtTarget(Math.max(0, Number(e.target.value)))}
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                />
+              </div>
+              <div className="w-20">
+                <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Durasi (Bulan):</label>
+                <input
+                  type="number"
+                  value={debtDurationMonths || ''}
+                  onChange={(e) => setDebtDurationMonths(Math.max(1, Number(e.target.value)))}
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 text-center"
+                />
+              </div>
             </div>
           </div>
 

@@ -265,7 +265,7 @@ export default function App() {
   };
 
   const summary = calculateBalanceSummary(transactions, openBalance, timeFilter, closedMonths);
-  const healthMetrics = calculateFinancialHealthMetrics(transactions, summary.totalBalance, debts, bills);
+  const healthMetrics = calculateFinancialHealthMetrics(transactions, summary.totalBalance, debts, bills, closedMonths);
   const unpaidBillsCount = bills.filter((b) => b.status === 'unpaid').length;
 
   const handleUpdateOpenBalance = (newBalanceInput: number) => {
