@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AccountInfo, Transaction } from '../types';
 import { formatRupiah, formatCompactRupiah } from '../utils/formatters';
 import { sanitizeAmount } from '../utils/storage';
@@ -260,34 +260,114 @@ export const AccountsManager: React.FC<AccountsManagerProps> = ({
 };
 
 // Sub-component for 6-Pos Automatic Multi-Kas Allocation
+const KEYS_MULTIKAS_CONFIG = 'catat_keuangan_multikas_config_v2';
+
 const MultiKasAutoAllocator: React.FC<{ totalOverallBalance: number }> = ({ totalOverallBalance }) => {
   const safeBalance = Math.max(0, sanitizeAmount(totalOverallBalance));
-  const [totalToDivide, setTotalToDivide] = useState<number>(safeBalance || 10000000);
-
-  // Pos 1: Target Total Hutang (Automatic monthly calculation = total / months)
-  const [totalDebtTarget, setTotalDebtTarget] = useState<number>(12000000);
-  const [debtDurationMonths, setDebtDurationMonths] = useState<number>(12);
-
-  // Pos 2 & 3: Nominal Tetap (Direct Inputs in Rp)
-  const [salaryNominal, setSalaryNominal] = useState<number>(2500000);     // Pos 2: Gaji & Operasional
-  const [utilitiesNominal, setUtilitiesNominal] = useState<number>(1000000);  // Pos 3: Sewa / Listrik / PDAM
-
-  // Pos 4, 5, 6: Persentase (%) Pembagian Sisa Kas
-  const [percentages, setPercentages] = useState({
-    stock: 60,        // Pos 4: Modal Stok Kulakan (60%)
-    development: 20,  // Pos 5: Pengembangan Usaha (20%)
-    netProfit: 20,    // Pos 6: Laba Bersih / Dividen (20%)
+  
+  // Load initial state from localStorage if available
+  const [totalToDivide, setTotalToDivide] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(KEYS_MULTIKAS_CONFIG);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.totalToDivide) return parsed.totalToDivide;
+      }
+    } catch (e) {}
+    return safeBalance || 10000000;
   });
 
+  // Pos 1: Target Total Hutang & Durasi Bulan yang bisa disesuaikan sendiri
+  const [totalDebtTarget, setTotalDebtTarget] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(KEYS_MULTIKAS_CONFIG);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.totalDebtTarget === 'number') return parsed.totalDebtTarget;
+      }
+    } catch (e) {}
+    return 12000000;
+  });
+
+  const [debtDurationMonths, setDebtDurationMonths] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(KEYS_MULTIKAS_CONFIG);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.debtDurationMonths === 'number' && parsed.debtDurationMonths > 0) {
+          return parsed.debtDurationMonths;
+        }
+      }
+    } catch (e) {}
+    return 12;
+  });
+
+  // Pos 2 & 3: Nominal Tetap (Direct Inputs in Rp)
+  const [salaryNominal, setSalaryNominal] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(KEYS_MULTIKAS_CONFIG);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.salaryNominal === 'number') return parsed.salaryNominal;
+      }
+    } catch (e) {}
+    return 2500000;
+  });
+
+  const [utilitiesNominal, setUtilitiesNominal] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(KEYS_MULTIKAS_CONFIG);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.utilitiesNominal === 'number') return parsed.utilitiesNominal;
+      }
+    } catch (e) {}
+    return 1000000;
+  });
+
+  // Pos 4, 5, 6: Persentase (%) Pembagian Sisa Kas
+  const [percentages, setPercentages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(KEYS_MULTIKAS_CONFIG);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.percentages) return parsed.percentages;
+      }
+    } catch (e) {}
+    return {
+      stock: 60,        // Pos 4: Modal Stok Kulakan (60%)
+      development: 20,  // Pos 5: Pengembangan Usaha (20%)
+      netProfit: 20,    // Pos 6: Laba Bersih / Dividen (20%)
+    };
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    try {
+      const config = {
+        totalToDivide,
+        totalDebtTarget,
+        debtDurationMonths,
+        salaryNominal,
+        utilitiesNominal,
+        percentages,
+      };
+      localStorage.setItem(KEYS_MULTIKAS_CONFIG, JSON.stringify(config));
+    } catch (e) {
+      console.error('Failed saving Multi-Kas config', e);
+    }
+  }, [totalToDivide, totalDebtTarget, debtDurationMonths, salaryNominal, utilitiesNominal, percentages]);
+
   const handlePctChange = (key: keyof typeof percentages, val: number) => {
-    setPercentages((prev) => ({
+    setPercentages((prev: any) => ({
       ...prev,
       [key]: Math.max(0, Math.min(100, val)),
     }));
   };
 
   const safeTotalToDivide = Math.max(0, sanitizeAmount(totalToDivide));
-  const monthlyDebtTarget = debtDurationMonths > 0 ? Math.round(totalDebtTarget / debtDurationMonths) : totalDebtTarget;
+  const safeDuration = Math.max(1, debtDurationMonths || 1);
+  const monthlyDebtTarget = Math.round(totalDebtTarget / safeDuration);
   const totalFixedExpenses = monthlyDebtTarget + salaryNominal + utilitiesNominal;
   const remainingCash = Math.max(0, safeTotalToDivide - totalFixedExpenses);
 
@@ -360,39 +440,95 @@ const MultiKasAutoAllocator: React.FC<{ totalOverallBalance: number }> = ({ tota
       {/* 6 Pos Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         
-        {/* POS 1: Target Bayar Hutang Lama */}
+        {/* POS 1: Target Bayar Hutang Lama (Bebas diatur berapa bulan sesuai kebutuhan) */}
         <div className="p-4 rounded-2xl border bg-rose-50 border-rose-200 space-y-3 shadow-2xs flex flex-col justify-between">
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider bg-rose-100 text-rose-800">
                 POS 1
               </span>
               <span className="text-[10px] font-bold text-rose-700 bg-white px-2 py-0.5 rounded border border-rose-200">
-                Cicilan Bulanan
+                Cicilan Bulanan ({safeDuration} Bulan)
               </span>
             </div>
 
-            <h4 className="font-bold text-slate-900 text-sm">Target Bayar Hutang</h4>
-            <p className="text-[11px] text-slate-600">Pelunasan hutang toko dibagi berdasarkan durasi bulan</p>
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm">Target Bayar Hutang</h4>
+              <p className="text-[11px] text-slate-600">Pelunasan hutang toko dibagi sesuai durasi bulan yang Anda tentukan sendiri</p>
+            </div>
 
-            <div className="flex space-x-2">
-              <div className="flex-1">
-                <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Total Target Hutang (Rp):</label>
-                <input
-                  type="number"
-                  value={totalDebtTarget || ''}
-                  onChange={(e) => setTotalDebtTarget(Math.max(0, Number(e.target.value)))}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
-                />
+            {/* Total Target Hutang Input */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Total Target Hutang (Rp):</label>
+              <input
+                type="number"
+                value={totalDebtTarget || ''}
+                onChange={(e) => setTotalDebtTarget(Math.max(0, Number(e.target.value)))}
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-rose-400 outline-none"
+              />
+            </div>
+
+            {/* Durasi Bulan Yang Bisa Disesuaikan Sendiri */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-bold text-slate-700">
+                  Target Pelunasan Berapa Bulan?
+                </label>
+                <span className="text-[11px] font-extrabold text-rose-800 bg-rose-100/80 px-2 py-0.5 rounded-md">
+                  {safeDuration} Bulan
+                </span>
               </div>
-              <div className="w-20">
-                <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Durasi (Bulan):</label>
-                <input
-                  type="number"
-                  value={debtDurationMonths || ''}
-                  onChange={(e) => setDebtDurationMonths(Math.max(1, Number(e.target.value)))}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 text-center"
-                />
+
+              {/* Stepper + Custom Number Input */}
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDebtDurationMonths((prev) => Math.max(1, prev - 1))}
+                  className="w-8 h-8 rounded-lg bg-white hover:bg-rose-100 border border-slate-300 font-bold text-slate-700 flex items-center justify-center transition cursor-pointer text-sm"
+                  title="Kurangi 1 bulan"
+                >
+                  -
+                </button>
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    min="1"
+                    max="120"
+                    value={debtDurationMonths || ''}
+                    onChange={(e) => setDebtDurationMonths(Math.max(1, Number(e.target.value)))}
+                    className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 text-center focus:ring-1 focus:ring-rose-400 outline-none"
+                    placeholder="Bulan"
+                  />
+                  <span className="text-[10px] text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                    bln
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDebtDurationMonths((prev) => prev + 1)}
+                  className="w-8 h-8 rounded-lg bg-white hover:bg-rose-100 border border-slate-300 font-bold text-slate-700 flex items-center justify-center transition cursor-pointer text-sm"
+                  title="Tambah 1 bulan"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Quick Preset Duration Buttons */}
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                {[3, 6, 10, 12, 18, 24, 36].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDebtDurationMonths(m)}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded transition cursor-pointer ${
+                      safeDuration === m
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'bg-white hover:bg-rose-100 text-slate-700 border border-rose-200'
+                    }`}
+                  >
+                    {m} bln
+                  </button>
+                ))}
               </div>
             </div>
           </div>

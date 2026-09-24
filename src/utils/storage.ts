@@ -511,6 +511,17 @@ export const resetToSampleData = () => {
 };
 
 const KEYS_CLOSED_MONTHS = 'catat_keuangan_closed_months_v1';
+const KEYS_CLOSED_MONTH_SNAPSHOTS = 'catat_keuangan_closed_month_snapshots_v1';
+
+export interface ClosedMonthSnapshot {
+  month: string; // e.g. '2026-08'
+  closedAt: number;
+  openBalance: number;
+  cashIn: number;
+  cashOut: number;
+  totalBalance: number;
+  transactionCount?: number;
+}
 
 export const loadClosedMonths = (): string[] => {
   try {
@@ -526,6 +537,35 @@ export const saveClosedMonths = (months: string[]) => {
     localStorage.setItem(KEYS_CLOSED_MONTHS, JSON.stringify(months));
   } catch (e) {
     console.error('Failed saving closed months', e);
+  }
+};
+
+export const loadClosedMonthSnapshots = (): Record<string, ClosedMonthSnapshot> => {
+  try {
+    const data = localStorage.getItem(KEYS_CLOSED_MONTH_SNAPSHOTS);
+    return data ? JSON.parse(data) : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+export const saveClosedMonthSnapshot = (snapshot: ClosedMonthSnapshot) => {
+  try {
+    const current = loadClosedMonthSnapshots();
+    current[snapshot.month] = snapshot;
+    localStorage.setItem(KEYS_CLOSED_MONTH_SNAPSHOTS, JSON.stringify(current));
+  } catch (e) {
+    console.error('Failed saving closed month snapshot', e);
+  }
+};
+
+export const deleteClosedMonthSnapshot = (month: string) => {
+  try {
+    const current = loadClosedMonthSnapshots();
+    delete current[month];
+    localStorage.setItem(KEYS_CLOSED_MONTH_SNAPSHOTS, JSON.stringify(current));
+  } catch (e) {
+    console.error('Failed deleting closed month snapshot', e);
   }
 };
 
@@ -557,6 +597,52 @@ export const calculateCarriedOpenBalance = (
   return cleanBase + (priorIn - priorOut);
 };
 
+// Calculate complete summary for a specific month (from Saldo Awal to Total Balance)
+export const calculateSpecificMonthSummary = (
+  allTransactions: Transaction[],
+  baseOpenBalance: number,
+  targetMonthStr: string, // 'YYYY-MM'
+  closedSnapshots: Record<string, ClosedMonthSnapshot> = {}
+) => {
+  const monthTxs = allTransactions.filter((t) => (t.date || '').slice(0, 7) === targetMonthStr);
+  let cashIn = 0;
+  let cashOut = 0;
+  monthTxs.forEach((t) => {
+    const amt = sanitizeAmount(t.amount);
+    if (t.type === 'cash_in') cashIn += amt;
+    else if (t.type === 'cash_out') cashOut += amt;
+  });
+
+  // If a saved snapshot exists for this closed month, use its exact recorded numbers!
+  if (closedSnapshots[targetMonthStr]) {
+    const s = closedSnapshots[targetMonthStr];
+    const openBalance = sanitizeAmount(s.openBalance);
+    const totalBalance = openBalance + cashIn - cashOut;
+    return {
+      openBalance,
+      priorNet: 0,
+      cashIn,
+      cashOut,
+      totalBalance: s.totalBalance && totalBalance === 0 && monthTxs.length === 0 ? s.totalBalance : totalBalance,
+      isClosed: true,
+      closedAt: s.closedAt,
+    };
+  }
+
+  // If no snapshot exists yet, compute open modal based on carried balance
+  const openBalance = calculateCarriedOpenBalance(allTransactions, baseOpenBalance, targetMonthStr);
+  const totalBalance = openBalance + cashIn - cashOut;
+
+  return {
+    openBalance,
+    priorNet: 0,
+    cashIn,
+    cashOut,
+    totalBalance,
+    isClosed: false,
+  };
+};
+
 // Calculate comprehensive Financial Health Metrics (Financify-grade diagnostics)
 export const calculateFinancialHealthMetrics = (
   transactions: Transaction[],
@@ -567,30 +653,31 @@ export const calculateFinancialHealthMetrics = (
 ): FinancialHealthMetrics => {
   const cleanBalance = Math.max(0, currentTotalBalance);
 
-  // Filter out transactions that belong to closed months so score resets
-  const activeTransactions = transactions.filter(t => !closedMonths.includes((t.date || '').slice(0, 7)));
+  // Current month string (e.g. '2026-08')
+  const currentMonthStr = new Date().toISOString().slice(0, 7);
 
-  // Consider transactions in the last 30 days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
+  // Evaluate only transactions in the current month that are not closed
+  const currentMonthActiveTxs = transactions.filter((t) => {
+    const m = (t.date || '').slice(0, 7);
+    return m === currentMonthStr && !closedMonths.includes(m);
+  });
 
-  const recentTxs = activeTransactions.filter((t) => (t.date || '').slice(0, 10) >= thirtyDaysAgoStr);
-  const relevantTxs = recentTxs.length >= 3 ? recentTxs : activeTransactions;
-
-  if (relevantTxs.length === 0) {
+  // If current month is closed or has no transactions yet, reset score to 0 (Fresh / Awal Bulan)
+  if (currentMonthActiveTxs.length === 0 || closedMonths.includes(currentMonthStr)) {
     return {
       score: 0,
       status: 'good',
-      statusLabel: 'Menunggu Data Baru',
+      statusLabel: 'Awal Bulan / Ter-reset',
       profitMargin: 0,
       expenseRatio: 0,
       cashRunwayDays: 0,
       debtRiskRatio: 0,
-      strengths: ['Belum ada transaksi di periode ini.'],
-      recommendations: ['Mulai catat pemasukan dan pengeluaran Anda untuk melihat analisis kesehatan keuangan.'],
+      strengths: ['Bulan baru dimulai atau baru saja tutup buku. Skor siap dihitung dari nol.'],
+      recommendations: ['Mulai catat transaksi pemasukan & pengeluaran bulan ini untuk menganalisis skor kesehatan keuangan terbaru.'],
     };
   }
+
+  const relevantTxs = currentMonthActiveTxs;
 
   const totalIn = relevantTxs.filter((t) => t.type === 'cash_in').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
   const totalOut = relevantTxs.filter((t) => t.type === 'cash_out').reduce((s, t) => s + sanitizeAmount(t.amount), 0);

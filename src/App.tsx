@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ViewTab, Transaction, Category, SyncSettings, AuthUser, AccountInfo, DebtItem, BillItem, TransactionType } from './types';
 import {
   loadStoredTransactions,
@@ -22,7 +22,13 @@ import {
   saveClosedMonths,
   calculateBalanceSummary,
   resetToSampleData,
+  loadClosedMonthSnapshots,
+  saveClosedMonthSnapshot,
+  deleteClosedMonthSnapshot,
+  calculateSpecificMonthSummary,
+  ClosedMonthSnapshot,
 } from './utils/storage';
+import { downloadFinancialReportPdf } from './utils/pdfGenerator';
 import { Header } from './components/Header';
 import { WelcomeOverviewGateway } from './components/WelcomeOverviewGateway';
 import { BalanceSummaryCards } from './components/BalanceSummaryCards';
@@ -83,6 +89,7 @@ export default function App() {
   // Tutup Buku (Monthly Closing) State
   const [closedMonths, setClosedMonths] = useState<string[]>([]);
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('current');
+  const [closedMonthSnapshots, setClosedMonthSnapshots] = useState<Record<string, ClosedMonthSnapshot>>(() => loadClosedMonthSnapshots());
 
   // Quick Add Modal state
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -108,6 +115,7 @@ export default function App() {
     setOpenBalance(loadStoredOpenBalance());
     setSyncSettings(loadSyncSettings());
     setClosedMonths(loadClosedMonths());
+    setClosedMonthSnapshots(loadClosedMonthSnapshots());
     const pin = loadStoredPin();
     setSavedPin(pin);
     if (pin) {
@@ -157,19 +165,6 @@ export default function App() {
   const handleSavePin = (pin: string | null) => {
     setSavedPin(pin);
     savePin(pin);
-  };
-
-  const handleCloseCurrentMonth = () => {
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    if (!closedMonths.includes(currentMonth)) {
-      const updated = [...closedMonths, currentMonth];
-      setClosedMonths(updated);
-      saveClosedMonths(updated);
-      // Reset open balance so next month starts completely from 0
-      setOpenBalance(0);
-      saveOpenBalance(0);
-    }
-    setSelectedMonthFilter('current');
   };
 
   const handleLoginSuccess = async (user: AuthUser) => {
@@ -264,14 +259,116 @@ export default function App() {
     saveCategories(newCatList);
   };
 
-  const summary = calculateBalanceSummary(transactions, openBalance, timeFilter, closedMonths);
-  const healthMetrics = calculateFinancialHealthMetrics(transactions, summary.totalBalance, debts, bills, closedMonths);
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    transactions.forEach((t) => {
+      const m = (t.date || '').slice(0, 7);
+      if (m) set.add(m);
+    });
+    closedMonths.forEach((m) => set.add(m));
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [transactions, closedMonths]);
+
+  const isViewingSpecificMonth = Boolean(
+    selectedMonthFilter && selectedMonthFilter !== 'current' && selectedMonthFilter !== 'all'
+  );
+
+  const activeSummary = calculateBalanceSummary(transactions, openBalance, timeFilter, closedMonths);
+  const specificSummary = calculateSpecificMonthSummary(
+    transactions,
+    openBalance,
+    selectedMonthFilter,
+    closedMonthSnapshots
+  );
+
+  const summary = isViewingSpecificMonth ? specificSummary : activeSummary;
+  const healthMetrics = calculateFinancialHealthMetrics(transactions, activeSummary.totalBalance, debts, bills, closedMonths);
   const unpaidBillsCount = bills.filter((b) => b.status === 'unpaid').length;
 
   const handleUpdateOpenBalance = (newBalanceInput: number) => {
-    const newBase = newBalanceInput - summary.priorNet;
-    setOpenBalance(newBase);
-    saveOpenBalance(newBase);
+    if (isViewingSpecificMonth) {
+      const existingSnap = closedMonthSnapshots[selectedMonthFilter] || {
+        month: selectedMonthFilter,
+        closedAt: Date.now(),
+        openBalance: newBalanceInput,
+        cashIn: specificSummary.cashIn,
+        cashOut: specificSummary.cashOut,
+        totalBalance: newBalanceInput + specificSummary.cashIn - specificSummary.cashOut,
+        transactionCount: transactions.filter((t) => (t.date || '').slice(0, 7) === selectedMonthFilter).length,
+      };
+      const updatedSnap: ClosedMonthSnapshot = {
+        ...existingSnap,
+        openBalance: newBalanceInput,
+        totalBalance: newBalanceInput + specificSummary.cashIn - specificSummary.cashOut,
+      };
+      saveClosedMonthSnapshot(updatedSnap);
+      setClosedMonthSnapshots(loadClosedMonthSnapshots());
+    } else {
+      const newBase = newBalanceInput - activeSummary.priorNet;
+      setOpenBalance(newBase);
+      saveOpenBalance(newBase);
+    }
+  };
+
+  const handleCloseCurrentMonth = () => {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const monthTxs = transactions.filter((t) => (t.date || '').slice(0, 7) === currentMonth);
+    const mCashIn = monthTxs.filter((t) => t.type === 'cash_in').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const mCashOut = monthTxs.filter((t) => t.type === 'cash_out').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const mOpen = activeSummary.openBalance;
+    const mTotal = mOpen + mCashIn - mCashOut;
+
+    const snapshot: ClosedMonthSnapshot = {
+      month: currentMonth,
+      closedAt: Date.now(),
+      openBalance: mOpen,
+      cashIn: mCashIn,
+      cashOut: mCashOut,
+      totalBalance: mTotal,
+      transactionCount: monthTxs.length,
+    };
+    saveClosedMonthSnapshot(snapshot);
+    setClosedMonthSnapshots(loadClosedMonthSnapshots());
+
+    if (!closedMonths.includes(currentMonth)) {
+      const updated = [...closedMonths, currentMonth];
+      setClosedMonths(updated);
+      saveClosedMonths(updated);
+    }
+    // Reset open balance so next month starts completely from 0
+    setOpenBalance(0);
+    saveOpenBalance(0);
+    setSelectedMonthFilter('current');
+  };
+
+  const handleReopenMonth = (monthToReopen: string) => {
+    const updated = closedMonths.filter((m) => m !== monthToReopen);
+    setClosedMonths(updated);
+    saveClosedMonths(updated);
+    deleteClosedMonthSnapshot(monthToReopen);
+    setClosedMonthSnapshots(loadClosedMonthSnapshots());
+  };
+
+  const handleDownloadMonthPdf = (monthStr: string, monthTxs: Transaction[]) => {
+    const summaryToUse = calculateSpecificMonthSummary(
+      transactions,
+      openBalance,
+      monthStr,
+      closedMonthSnapshots
+    );
+    const dateObj = new Date(`${monthStr}-01T00:00:00`);
+    const monthName = isNaN(dateObj.getTime())
+      ? monthStr
+      : new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(dateObj);
+
+    downloadFinancialReportPdf({
+      transactions: monthTxs,
+      totalBalance: summaryToUse.totalBalance,
+      totalIn: summaryToUse.cashIn,
+      totalOut: summaryToUse.cashOut,
+      netProfit: summaryToUse.cashIn - summaryToUse.cashOut,
+      periodLabel: `Laporan Bulanan ${monthName} (Tutup Buku)`,
+    });
   };
 
   const handleUpdateSyncSettings = (newSettings: SyncSettings) => {
@@ -487,6 +584,10 @@ export default function App() {
               timeFilter={timeFilter}
               setTimeFilter={setTimeFilter}
               onUpdateOpenBalance={handleUpdateOpenBalance}
+              selectedMonthFilter={selectedMonthFilter}
+              onSelectMonthFilter={setSelectedMonthFilter}
+              closedMonths={closedMonths}
+              availableMonths={availableMonths}
             />
 
             {/* Daily Transaction List */}
@@ -504,6 +605,8 @@ export default function App() {
               selectedMonthFilter={selectedMonthFilter}
               onSelectMonthFilter={setSelectedMonthFilter}
               onCloseCurrentMonth={handleCloseCurrentMonth}
+              onReopenMonth={handleReopenMonth}
+              onDownloadMonthPdf={handleDownloadMonthPdf}
             />
           </div>
         )}

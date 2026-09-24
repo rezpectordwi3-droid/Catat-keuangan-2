@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, Category } from '../types';
-import { Search, Filter, Trash2, Edit3, ArrowUpRight, ArrowDownLeft, Utensils, Car, ShoppingCart, Receipt, Tv, HeartPulse, GraduationCap, MoreHorizontal, Briefcase, Store, Gift, TrendingUp, Calendar, Wallet, Building2, Smartphone, CreditCard, FileText, Printer } from 'lucide-react';
+import { Search, Filter, Trash2, Edit3, ArrowUpRight, ArrowDownLeft, Utensils, Car, ShoppingCart, Receipt, Tv, HeartPulse, GraduationCap, MoreHorizontal, Briefcase, Store, Gift, TrendingUp, Calendar, Wallet, Building2, Smartphone, CreditCard, FileText, Printer, Lock } from 'lucide-react';
 import { formatRupiah, formatDateIndonesian } from '../utils/formatters';
 import { sanitizeTimeString, exportSingleNoteToMarkdown } from '../utils/storage';
 
@@ -14,6 +14,8 @@ interface TransactionListProps {
   selectedMonthFilter?: string; // 'current' | 'all' | 'YYYY-MM'
   onSelectMonthFilter?: (monthStr: string) => void;
   onCloseCurrentMonth?: () => void;
+  onReopenMonth?: (monthStr: string) => void;
+  onDownloadMonthPdf?: (monthStr: string, txs: Transaction[]) => void;
 }
 
 export const TransactionList: React.FC<TransactionListProps> = ({
@@ -26,6 +28,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   selectedMonthFilter = 'current',
   onSelectMonthFilter,
   onCloseCurrentMonth,
+  onReopenMonth,
+  onDownloadMonthPdf,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'cash_in' | 'cash_out'>('all');
@@ -189,6 +193,50 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         </div>
       </div>
 
+      {/* Closed Month Alert Banner */}
+      {Boolean(selectedMonthFilter && selectedMonthFilter !== 'current' && selectedMonthFilter !== 'all' && closedMonths.includes(selectedMonthFilter)) && (
+        <div className="bg-amber-50 border border-amber-200 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 shadow-2xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-200/80 flex items-center justify-center shrink-0 text-amber-800">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-extrabold text-xs sm:text-sm text-amber-950 flex items-center gap-2">
+                <span>Arsip Tutup Buku Bulan Ini Terkunci</span>
+                <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-mono font-bold">{selectedMonthFilter}</span>
+              </div>
+              <p className="text-[11px] text-amber-800/90 mt-0.5">
+                Semua catatan transaksi & laporan saldo pada bulan ini telah diarsipkan secara permanen.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+            {onDownloadMonthPdf && (
+              <button
+                onClick={() => onDownloadMonthPdf(selectedMonthFilter, filtered)}
+                className="px-3 py-1.5 bg-amber-900 hover:bg-amber-800 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Unduh PDF</span>
+              </button>
+            )}
+            {onReopenMonth && (
+              <button
+                onClick={() => {
+                  if (confirm(`Apakah Anda yakin ingin membuka kunci (membatalkan Tutup Buku) untuk bulan ${selectedMonthFilter}?\n\nTransaksi bulan tersebut akan dapat diedit/dihapus kembali.`)) {
+                    onReopenMonth(selectedMonthFilter);
+                  }
+                }}
+                className="px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-900 text-xs font-bold rounded-xl border border-amber-300 transition cursor-pointer"
+              >
+                <span>Buka Kunci</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Filter Row: Search, Type, Category */}
       <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2 pt-1">
         {/* Search */}
@@ -339,24 +387,37 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                             >
                               <FileText className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => onEditTransaction(tx)}
-                              title="Edit"
-                              className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition cursor-pointer"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm('Apakah Anda yakin ingin menghapus catatan transaksi ini?')) {
-                                  onDeleteTransaction(tx.id);
-                                }
-                              }}
-                              title="Hapus"
-                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+
+                            {closedMonths.includes((tx.date || '').slice(0, 7)) ? (
+                              <span
+                                className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded flex items-center space-x-1"
+                                title="Bulan ini telah ditutup buku (Terkunci)"
+                              >
+                                <Lock className="w-3 h-3" />
+                                <span className="hidden sm:inline">Terkunci</span>
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => onEditTransaction(tx)}
+                                  title="Edit"
+                                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (confirm('Apakah Anda yakin ingin menghapus catatan transaksi ini?')) {
+                                      onDeleteTransaction(tx.id);
+                                    }
+                                  }}
+                                  title="Hapus"
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
 

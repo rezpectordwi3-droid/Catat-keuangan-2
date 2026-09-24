@@ -34,6 +34,7 @@ export default defineConfig(() => {
           ]
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
           runtimeCaching: [
             {
@@ -71,6 +72,17 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+      },
+    },
+    build: {
+      chunkSizeWarningLimit: 1500,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            pdf: ['jspdf', 'jspdf-autotable'],
+            firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth'],
+          },
+        },
       },
     },
     server: {

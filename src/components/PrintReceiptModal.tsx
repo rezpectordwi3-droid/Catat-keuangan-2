@@ -1,12 +1,13 @@
-import React, { useRef } from 'react';
-import { X, Printer, Download } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { X, Printer, Download, CheckCircle2 } from 'lucide-react';
 import { Transaction, DebtItem, FinancialHealthMetrics } from '../types';
 import { formatRupiah, formatDateIndonesian } from '../utils/formatters';
+import { downloadReceiptPdf } from '../utils/pdfGenerator';
 
 interface PrintReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: any; // Can be Transaction, KasbonItem, or Report payload
+  data: any; // Can be Transaction, KasbonItem/DebtItem, or Report payload
   type: 'transaction' | 'kasbon' | 'report';
 }
 
@@ -17,11 +18,20 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
   type,
 }) => {
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   if (!isOpen || !data) return null;
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = () => {
+    downloadReceiptPdf(data, type);
+    setDownloadSuccess(true);
+    setTimeout(() => {
+      setDownloadSuccess(false);
+    }, 2500);
   };
 
   const todayStr = new Date().toLocaleString('id-ID', {
@@ -155,26 +165,37 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
                   <div className="mb-4">
                     <div className="flex justify-between py-1">
                       <span>Pelanggan:</span>
-                      <span className="font-bold uppercase">{data.name}</span>
+                      <span className="font-bold uppercase">{data.customerName || data.name || '-'}</span>
                     </div>
+                    {data.phone && (
+                      <div className="flex justify-between py-1">
+                        <span>No. HP:</span>
+                        <span>{data.phone}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between py-1">
-                      <span>Tgl Catat:</span>
-                      <span>{data.date}</span>
+                      <span>Jatuh Tempo:</span>
+                      <span>{data.dueDate || data.date || '-'}</span>
                     </div>
                     <div className="flex justify-between py-1">
                       <span>Status:</span>
-                      <span className="font-bold">{data.status === 'paid' ? 'LUNAS' : 'BELUM LUNAS'}</span>
+                      <span className={`font-bold ${data.status === 'paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {data.status === 'paid' ? 'LUNAS' : 'BELUM LUNAS'}
+                      </span>
                     </div>
                   </div>
 
                   <div className="border-b border-dashed border-gray-400 my-2"></div>
                   
-                  <div className="mb-4">
-                    <p className="mb-1 font-semibold">Detail Barang/Jasa:</p>
-                    <p className="break-words">{data.description}</p>
-                  </div>
-
-                  <div className="border-b border-dashed border-gray-400 my-2"></div>
+                  {(data.notes || data.description) && (
+                    <>
+                      <div className="mb-4">
+                        <p className="mb-1 font-semibold">Keterangan / Rincian:</p>
+                        <p className="break-words bg-gray-50 p-2 rounded text-[11px]">{data.notes || data.description}</p>
+                      </div>
+                      <div className="border-b border-dashed border-gray-400 my-2"></div>
+                    </>
+                  )}
 
                   <div className="flex justify-between items-end mt-4">
                     <span className="font-bold text-sm">TOTAL TAGIHAN</span>
@@ -193,20 +214,37 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="p-4 bg-white border-t border-slate-200 grid grid-cols-2 gap-3">
-            <button
-              onClick={onClose}
-              className="py-3 px-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
-            >
-              Batal
-            </button>
-            <button
-              onClick={handlePrint}
-              className="py-3 px-4 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition shadow-lg shadow-indigo-200 flex items-center justify-center space-x-2"
-            >
-              <Printer className="w-5 h-5" />
-              <span>Cetak / PDF</span>
-            </button>
+          <div className="p-4 bg-white border-t border-slate-200 flex flex-col gap-2.5">
+            {downloadSuccess && (
+              <div className="py-2 px-3 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>File PDF berhasil diunduh ke perangkat Anda!</span>
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={onClose}
+                className="py-2.5 px-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition text-xs sm:text-sm cursor-pointer"
+              >
+                Tutup
+              </button>
+              <button
+                onClick={handleDownloadPdf}
+                className="py-2.5 px-3 rounded-xl font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 border border-emerald-200 transition flex items-center justify-center space-x-1.5 text-xs sm:text-sm cursor-pointer shadow-2xs"
+                title="Download file PDF struk langsung"
+              >
+                <Download className="w-4 h-4 text-emerald-700" />
+                <span>Unduh PDF</span>
+              </button>
+              <button
+                onClick={handlePrint}
+                className="py-2.5 px-3 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 active:bg-slate-950 transition shadow-md flex items-center justify-center space-x-1.5 text-xs sm:text-sm cursor-pointer"
+                title="Cetak struk ke printer"
+              >
+                <Printer className="w-4 h-4 text-white" />
+                <span>Cetak</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
