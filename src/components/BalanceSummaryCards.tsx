@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowUpRight, ArrowDownLeft, Scale, Edit2, Calendar, Check, X, Lock, RotateCcw } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Scale, Edit2, Calendar, Check, X, Lock, RotateCcw, Zap } from 'lucide-react';
 import { formatRupiah, formatCompactRupiah } from '../utils/formatters';
 
 interface BalanceSummaryCardsProps {
@@ -14,6 +14,8 @@ interface BalanceSummaryCardsProps {
   onSelectMonthFilter?: (month: string) => void;
   closedMonths?: string[];
   availableMonths?: string[];
+  autoCloseEnabled?: boolean;
+  onOpenAutoCloseSettings?: () => void;
 }
 
 export const BalanceSummaryCards: React.FC<BalanceSummaryCardsProps> = ({
@@ -28,6 +30,8 @@ export const BalanceSummaryCards: React.FC<BalanceSummaryCardsProps> = ({
   onSelectMonthFilter,
   closedMonths = [],
   availableMonths = [],
+  autoCloseEnabled = true,
+  onOpenAutoCloseSettings,
 }) => {
   const [isEditingOpenBalance, setIsEditingOpenBalance] = useState(false);
   const [tempOpenBalance, setTempOpenBalance] = useState(String(openBalance));
@@ -180,6 +184,22 @@ export const BalanceSummaryCards: React.FC<BalanceSummaryCardsProps> = ({
               })}
             </select>
           </div>
+
+          {/* Quick Auto-Close Settings Button */}
+          {onOpenAutoCloseSettings && (
+            <button
+              type="button"
+              onClick={onOpenAutoCloseSettings}
+              title="Pengaturan Otomatis Tutup Buku Akhir Bulan"
+              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 border border-slate-200/80 text-[11px] font-bold transition cursor-pointer shrink-0 w-full sm:w-auto justify-center"
+            >
+              <Zap className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Auto Tutup:</span>
+              <span className={autoCloseEnabled ? 'text-emerald-700 font-extrabold' : 'text-slate-400'}>
+                {autoCloseEnabled ? 'Aktif' : 'Off'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 

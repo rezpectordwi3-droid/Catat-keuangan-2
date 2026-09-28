@@ -96,8 +96,92 @@ export interface FinancialHealthMetrics {
   recommendations: string[];
 }
 
+export interface ClosedMonthSnapshot {
+  month: string; // e.g. '2026-08'
+  closedAt: number;
+  openBalance: number;
+  cashIn: number;
+  cashOut: number;
+  totalBalance: number;
+  transactionCount?: number;
+  isAutoClosed?: boolean;
+}
+
+export interface AutoCloseConfig {
+  enabled: boolean;
+  carryOverMode: 'zero' | 'rollover'; // 'zero' = mulai dari nol (clean slate), 'rollover' = teruskan saldo akhir
+  lastAutoClosedMonth?: string;
+  lastAutoClosedAt?: number;
+}
+
+export interface MonthEndForecast {
+  daysInMonth: number;
+  currentDay: number;
+  daysRemaining: number;
+  isLastDay: boolean;
+  dailyAvgExpense: number;
+  dailyAvgIncome: number;
+  projectedRemainingExpense: number;
+  projectedRemainingIncome: number;
+  pendingBillsAmount: number;
+  projectedFinalBalance: number;
+  status: 'surplus' | 'moderate' | 'deficit_risk';
+  advice: string;
+  safeDailyBudget: number;
+}
+
+export type MenuCategory = 'makanan' | 'minuman' | 'tambahan' | 'produk' | 'jasa' | 'lainnya';
+
+export interface StoreProfile {
+  name: string;
+  phone?: string;
+  address?: string;
+  tagline?: string;
+  footerMessage?: string;
+}
+
+export interface MenuItem {
+  id: string;
+  name: string;
+  category: MenuCategory;
+  defaultPrice: number;
+  icon?: string;
+  notes?: string;
+}
+
+export interface OrderItem {
+  id: string;
+  name: string;
+  category: MenuCategory;
+  price: number;
+  qty: number;
+}
+
+export interface OrderBill {
+  id: string; // e.g. "NOTA-20260928-001"
+  orderNumber: number;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  customerName: string;
+  customerPhone?: string;
+  tableNumber?: string;
+  orderType: 'dine_in' | 'take_away';
+  totalCustomers: number; // Total customer / orang yang belanja atau makan di sini
+  items: OrderItem[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  paymentMethod: 'cash' | 'qris' | 'bank' | 'kasbon';
+  cashTendered?: number;
+  changeAmount?: number;
+  status: 'paid' | 'kasbon';
+  notes?: string;
+  createdAt: number;
+}
+
 export type ViewTab =
   | 'dashboard'
+  | 'nota'
   | 'bills'
   | 'health'
   | 'kasbon'
@@ -106,5 +190,6 @@ export type ViewTab =
   | 'export'
   | 'categories'
   | 'sync'
-  | 'features';
+  | 'features'
+  | 'tips';
 

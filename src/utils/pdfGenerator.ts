@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Transaction } from '../types';
+import { Transaction, StoreProfile } from '../types';
 import { formatRupiah } from './formatters';
 
 interface FinancialReportPdfOptions {
@@ -217,12 +217,16 @@ export const downloadFinancialReportPdf = ({
   doc.save(filename);
 };
 
-export const downloadReceiptPdf = (data: any, type: 'transaction' | 'kasbon' | 'report') => {
+export const downloadReceiptPdf = (
+  data: any,
+  type: 'transaction' | 'kasbon' | 'report' | 'order_bill',
+  profile?: StoreProfile
+) => {
   // Use a slip receipt size: 80mm width, dynamic height
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [80, 160], // Thermal slip format
+    format: [80, 190], // Thermal slip format
   });
 
   const pageWidth = 80;
@@ -231,25 +235,134 @@ export const downloadReceiptPdf = (data: any, type: 'transaction' | 'kasbon' | '
     timeStyle: 'short',
   });
 
+  const storeName = profile?.name || 'WARUNG SOTO & RAWON';
+  const tagline = profile?.tagline || 'Soto Lamongan, Rawon & Aneka Kuliner';
+
   // Header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(15, 23, 42);
-  doc.text('UANG WARUNG', pageWidth / 2, 12, { align: 'center' });
+  doc.text(storeName.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('Catatan Keuangan Pintar Warung', pageWidth / 2, 16, { align: 'center' });
+  doc.text(tagline, pageWidth / 2, 16, { align: 'center' });
+
+  let headerOffset = 20;
+  if (profile?.address || profile?.phone) {
+    const contactText = [profile?.address, profile?.phone ? `Telp: ${profile.phone}` : ''].filter(Boolean).join(' • ');
+    doc.setFontSize(7);
+    doc.text(contactText, pageWidth / 2, headerOffset, { align: 'center' });
+    headerOffset += 4;
+  }
 
   // Dashed separator line
   doc.setLineDashPattern([1, 1], 0);
   doc.setDrawColor(148, 163, 184);
-  doc.line(6, 20, pageWidth - 6, 20);
+  doc.line(6, headerOffset, pageWidth - 6, headerOffset);
 
-  let curY = 26;
+  let curY = headerOffset + 6;
 
-  if (type === 'transaction') {
+  if (type === 'order_bill') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text('NOTA PESANAN', pageWidth / 2, curY, { align: 'center' });
+
+    curY += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`No: ${data.id || '-'} • ${data.date || ''} ${data.time || ''}`, pageWidth / 2, curY, { align: 'center' });
+
+    curY += 6;
+    const orderTypeLabel = data.orderType === 'dine_in' ? `Makan di Tempat (Meja ${data.tableNumber || '-'})` : 'Bungkus / Take Away';
+    const fields = [
+      ['Pelanggan', data.customerName || 'Pelanggan'],
+      ['Pengunjung', `${data.totalCustomers || 1} Orang`],
+      ['Tipe Order', orderTypeLabel],
+    ];
+
+    fields.forEach(([label, val]) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(label, 8, curY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(val, pageWidth - 8, curY, { align: 'right' });
+      curY += 5;
+    });
+
+    curY += 2;
+    doc.line(6, curY, pageWidth - 6, curY);
+    curY += 5;
+
+    // Items list
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Rincian Menu', 8, curY);
+    curY += 4.5;
+
+    if (Array.isArray(data.items)) {
+      data.items.forEach((item: any) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(51, 65, 85);
+        doc.text(`${item.qty}x ${item.name}`, 8, curY);
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(formatRupiah((item.price || 0) * (item.qty || 1)), pageWidth - 8, curY, { align: 'right' });
+        curY += 4.5;
+      });
+    }
+
+    curY += 2;
+    doc.line(6, curY, pageWidth - 6, curY);
+    curY += 5;
+
+    // Subtotal & Total
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Subtotal', 8, curY);
+    doc.text(formatRupiah(data.subtotal || data.total || 0), pageWidth - 8, curY, { align: 'right' });
+    curY += 4.5;
+
+    if (data.discount > 0) {
+      doc.text('Diskon', 8, curY);
+      doc.text(`-${formatRupiah(data.discount)}`, pageWidth - 8, curY, { align: 'right' });
+      curY += 4.5;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text('TOTAL', 8, curY);
+    doc.text(formatRupiah(data.total || 0), pageWidth - 8, curY, { align: 'right' });
+    curY += 5.5;
+
+    // Payment details
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Metode Bayar', 8, curY);
+    doc.text((data.paymentMethod || 'cash').toUpperCase(), pageWidth - 8, curY, { align: 'right' });
+    curY += 4.5;
+
+    if (data.paymentMethod === 'cash' && data.cashTendered) {
+      doc.text('Uang Diterima', 8, curY);
+      doc.text(formatRupiah(data.cashTendered), pageWidth - 8, curY, { align: 'right' });
+      curY += 4.5;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Kembalian', 8, curY);
+      doc.text(formatRupiah(data.changeAmount || 0), pageWidth - 8, curY, { align: 'right' });
+      curY += 5;
+    }
+  } else if (type === 'transaction') {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);

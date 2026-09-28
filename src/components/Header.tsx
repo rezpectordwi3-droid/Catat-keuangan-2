@@ -20,6 +20,7 @@ import {
   Receipt,
   Activity,
   Calculator as CalcIcon,
+  Lightbulb,
 } from 'lucide-react';
 import { formatCompactRupiah } from '../utils/formatters';
 import { InstallPwaModal } from './InstallPwaModal';
@@ -174,6 +175,23 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Catatan</span>
             </button>
 
+            {/* Nota & Kasir Warung */}
+            <button
+              onClick={() => setActiveTab('nota')}
+              id="tab-nota"
+              className={`flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition cursor-pointer shrink-0 whitespace-nowrap ${
+                activeTab === 'nota'
+                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300" />
+              <span>Nota & Kasir</span>
+              <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full">
+                Warung
+              </span>
+            </button>
+
             {/* Skor Kesehatan Finansial */}
             <button
               onClick={() => setActiveTab('health')}
@@ -278,6 +296,20 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Kategori</span>
+            </button>
+
+            {/* Tips & Proyeksi Finansial */}
+            <button
+              onClick={() => setActiveTab('tips')}
+              id="tab-tips"
+              className={`flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition cursor-pointer shrink-0 whitespace-nowrap ${
+                activeTab === 'tips'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+              <span>Tips & Proyeksi</span>
             </button>
 
             {/* Sync Cloud / Sheets */}

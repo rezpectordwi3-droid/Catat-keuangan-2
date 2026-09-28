@@ -22,7 +22,9 @@ import {
   Moon,
   Coffee,
   Calculator as CalcIcon,
+  Clock,
 } from 'lucide-react';
+import { getMonthEndInfo } from '../utils/storage';
 
 interface WelcomeOverviewGatewayProps {
   currentUser: AuthUser | null;
@@ -72,6 +74,7 @@ export const WelcomeOverviewGateway: React.FC<WelcomeOverviewGatewayProps> = ({
   const todayTxs = transactions.filter((t) => (t.date || '').slice(0, 10) === todayStr);
   const todayCashIn = todayTxs.filter((t) => t.type === 'cash_in').reduce((s, t) => s + t.amount, 0);
   const todayCashOut = todayTxs.filter((t) => t.type === 'cash_out').reduce((s, t) => s + t.amount, 0);
+  const monthInfo = getMonthEndInfo();
 
   const unpaidBills = bills.filter((b) => b.status === 'unpaid');
   const unpaidReceivables = debts.filter((d) => d.type === 'receivable' && d.status === 'unpaid');
@@ -135,10 +138,24 @@ export const WelcomeOverviewGateway: React.FC<WelcomeOverviewGatewayProps> = ({
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2">
               Ringkasan Kas Hari Ini
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 flex items-center gap-1.5 font-medium">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <span>{todayFormatted}</span>
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-300 font-medium">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span>{todayFormatted}</span>
+              </span>
+              <span className="text-slate-500">•</span>
+              <button
+                onClick={() => onNavigateTab('tips')}
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 transition cursor-pointer"
+              >
+                <Clock className="w-3 h-3 text-amber-400" />
+                <span>
+                  {monthInfo.isLastDay
+                    ? 'Hari Ini Tutup Buku Akhir Bulan!'
+                    : `Tutup Buku: Sisa ${monthInfo.daysRemaining} hari`}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Health Score Quick Card */}
@@ -205,7 +222,20 @@ export const WelcomeOverviewGateway: React.FC<WelcomeOverviewGatewayProps> = ({
       </div>
 
       {/* Quick Actions Launcher Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        {/* Buat Nota Warung (Soto & Rawon) */}
+        <button
+          onClick={() => onNavigateTab('nota')}
+          id="btn-gateway-nota"
+          className="flex flex-col items-start p-3.5 sm:p-4 rounded-2xl bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-400 transition shadow-xs group cursor-pointer text-left active:scale-98 relative"
+        >
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center mb-2.5 sm:mb-3 group-hover:scale-110 transition shadow-xs">
+            <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-700" />
+          </div>
+          <span className="text-[11px] sm:text-xs text-slate-400 font-semibold">Kasir Warung</span>
+          <span className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5">Nota Pesanan</span>
+        </button>
+
         {/* Catat Pemasukan */}
         <button
           onClick={() => onOpenQuickAdd('cash_in')}

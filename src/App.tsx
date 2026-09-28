@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ViewTab, Transaction, Category, SyncSettings, AuthUser, AccountInfo, DebtItem, BillItem, TransactionType } from './types';
+import { ViewTab, Transaction, Category, SyncSettings, AuthUser, AccountInfo, DebtItem, BillItem, TransactionType, AutoCloseConfig, MenuItem, OrderBill, StoreProfile } from './types';
 import {
   loadStoredTransactions,
   saveTransactions,
@@ -27,8 +27,20 @@ import {
   deleteClosedMonthSnapshot,
   calculateSpecificMonthSummary,
   ClosedMonthSnapshot,
+  loadAutoCloseConfig,
+  saveAutoCloseConfig,
+  checkAndExecuteAutoClosing,
+  getMonthEndInfo,
+  loadStoredMenuItems,
+  saveStoredMenuItems,
+  loadStoredOrderBills,
+  saveStoredOrderBills,
+  loadStoredStoreProfile,
+  saveStoredStoreProfile,
+  DEFAULT_MENU_ITEMS,
 } from './utils/storage';
 import { downloadFinancialReportPdf } from './utils/pdfGenerator';
+import { formatRupiah } from './utils/formatters';
 import { Header } from './components/Header';
 import { WelcomeOverviewGateway } from './components/WelcomeOverviewGateway';
 import { BalanceSummaryCards } from './components/BalanceSummaryCards';
@@ -48,6 +60,9 @@ import { PinLockModal } from './components/PinLockModal';
 import { SplashScreen } from './components/SplashScreen';
 import { CalculatorModal } from './components/CalculatorModal';
 import { PrintReceiptModal } from './components/PrintReceiptModal';
+import { AutoCloseModal } from './components/AutoCloseModal';
+import { TipsAndForecastView } from './components/TipsAndForecastView';
+import { NotaOrderManager } from './components/NotaOrderManager';
 import {
   syncUserToFirestore,
   saveTransactionToFirestore,
@@ -56,7 +71,7 @@ import {
   fetchTransactionsFromFirestore,
   mergeTransactions,
 } from './utils/firestoreStorage';
-import { Plus, Wallet, BarChart3, RefreshCw, Zap, Receipt, Activity, MessageSquare, Calculator as CalcIcon } from 'lucide-react';
+import { Plus, Wallet, BarChart3, RefreshCw, Zap, Receipt, Activity, MessageSquare, Calculator as CalcIcon, X, Lightbulb, Clock, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -91,6 +106,19 @@ export default function App() {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('current');
   const [closedMonthSnapshots, setClosedMonthSnapshots] = useState<Record<string, ClosedMonthSnapshot>>(() => loadClosedMonthSnapshots());
 
+  // Auto-Close Configuration State
+  const [autoCloseConfig, setAutoCloseConfig] = useState<AutoCloseConfig>(() => loadAutoCloseConfig());
+  const [isAutoCloseModalOpen, setIsAutoCloseModalOpen] = useState(false);
+  const [autoCloseBanner, setAutoCloseBanner] = useState<{
+    month: string;
+    totalBalance: number;
+  } | null>(null);
+
+  // Warung Food & Drink Menu & Order Bills State
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => loadStoredMenuItems());
+  const [orderBills, setOrderBills] = useState<OrderBill[]>(() => loadStoredOrderBills());
+  const [storeProfile, setStoreProfile] = useState<StoreProfile>(() => loadStoredStoreProfile());
+
   // Quick Add Modal state
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<TransactionType>('cash_out');
@@ -107,15 +135,44 @@ export default function App() {
   // Initialize data on mount
   useEffect(() => {
     const initialLocalTxs = loadStoredTransactions();
+    const initialOpenBalance = loadStoredOpenBalance();
+    const initialClosedMonths = loadClosedMonths();
+    const initialSnapshots = loadClosedMonthSnapshots();
+    const initialAutoConfig = loadAutoCloseConfig();
+
     setTransactions(initialLocalTxs);
     setCategories(loadStoredCategories());
     setAccounts(loadStoredAccounts());
     setDebts(loadStoredDebts());
     setBills(loadStoredBills());
-    setOpenBalance(loadStoredOpenBalance());
     setSyncSettings(loadSyncSettings());
-    setClosedMonths(loadClosedMonths());
-    setClosedMonthSnapshots(loadClosedMonthSnapshots());
+    setAutoCloseConfig(initialAutoConfig);
+
+    // Auto-Close check: automatically closes on month end date or past unclosed months
+    const autoCloseResult = checkAndExecuteAutoClosing(
+      initialLocalTxs,
+      initialOpenBalance,
+      initialClosedMonths,
+      initialSnapshots,
+      initialAutoConfig
+    );
+
+    if (autoCloseResult.wasTriggered) {
+      setClosedMonths(autoCloseResult.newClosedMonths);
+      setClosedMonthSnapshots(autoCloseResult.newSnapshots);
+      setOpenBalance(autoCloseResult.newOpenBalance);
+      if (autoCloseResult.lastClosedSnapshot) {
+        setAutoCloseBanner({
+          month: autoCloseResult.lastClosedSnapshot.month,
+          totalBalance: autoCloseResult.lastClosedSnapshot.totalBalance,
+        });
+      }
+    } else {
+      setOpenBalance(initialOpenBalance);
+      setClosedMonths(initialClosedMonths);
+      setClosedMonthSnapshots(initialSnapshots);
+    }
+
     const pin = loadStoredPin();
     setSavedPin(pin);
     if (pin) {
@@ -150,6 +207,31 @@ export default function App() {
   const handleSaveDebts = (updatedDebts: DebtItem[]) => {
     setDebts(updatedDebts);
     saveDebts(updatedDebts);
+  };
+
+  const handleSaveDebt = (debtData: Omit<DebtItem, 'id' | 'createdAt'>) => {
+    const newDebt: DebtItem = {
+      ...debtData,
+      id: `debt_${Date.now()}`,
+      createdAt: Date.now(),
+    };
+    handleSaveDebts([...debts, newDebt]);
+  };
+
+  const handleSaveOrderBill = (bill: OrderBill) => {
+    const updated = [...orderBills, bill];
+    setOrderBills(updated);
+    saveStoredOrderBills(updated);
+  };
+
+  const handleUpdateMenuItems = (items: MenuItem[]) => {
+    setMenuItems(items);
+    saveStoredMenuItems(items);
+  };
+
+  const handleUpdateStoreProfile = (profile: StoreProfile) => {
+    setStoreProfile(profile);
+    saveStoredStoreProfile(profile);
   };
 
   const handleSaveBills = (updatedBills: BillItem[]) => {
@@ -335,10 +417,33 @@ export default function App() {
       setClosedMonths(updated);
       saveClosedMonths(updated);
     }
-    // Reset open balance so next month starts completely from 0
-    setOpenBalance(0);
-    saveOpenBalance(0);
+    const nextStarting = autoCloseConfig.carryOverMode === 'rollover' ? mTotal : 0;
+    setOpenBalance(nextStarting);
+    saveOpenBalance(nextStarting);
     setSelectedMonthFilter('current');
+  };
+
+  const handleSaveAutoCloseConfig = (newConfig: AutoCloseConfig) => {
+    setAutoCloseConfig(newConfig);
+    saveAutoCloseConfig(newConfig);
+    const result = checkAndExecuteAutoClosing(
+      transactions,
+      openBalance,
+      closedMonths,
+      closedMonthSnapshots,
+      newConfig
+    );
+    if (result.wasTriggered) {
+      setClosedMonths(result.newClosedMonths);
+      setClosedMonthSnapshots(result.newSnapshots);
+      setOpenBalance(result.newOpenBalance);
+      if (result.lastClosedSnapshot) {
+        setAutoCloseBanner({
+          month: result.lastClosedSnapshot.month,
+          totalBalance: result.lastClosedSnapshot.totalBalance,
+        });
+      }
+    }
   };
 
   const handleReopenMonth = (monthToReopen: string) => {
@@ -474,9 +579,9 @@ export default function App() {
     setIsQuickAddOpen(true);
   };
 
-  const _today = new Date();
-  const isEndOfMonth = _today.getDate() >= 28;
-  const currentMonthStr = _today.toISOString().slice(0, 7);
+  const monthEndInfo = getMonthEndInfo();
+  const isEndOfMonth = monthEndInfo.daysRemaining <= 3;
+  const currentMonthStr = monthEndInfo.currentMonthStr;
   const showEndOfMonthReminder = isEndOfMonth && !closedMonths.includes(currentMonthStr);
 
   // Tarik Dana dari Multi-Kas
@@ -544,20 +649,92 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             
-            {showEndOfMonthReminder && (
-              <div className="bg-amber-100 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in">
-                <div>
-                  <h3 className="text-sm font-bold text-amber-900">Akhir Bulan Tiba! Waktunya Tutup Buku</h3>
-                  <p className="text-xs text-amber-800 mt-1">
-                    Simpan dan arsipkan catatan transaksi bulan ini. Total saldo akan otomatis diamankan ke dalam Multi-Kas, dan tampilan depan akan bersih (dimulai dari nol) untuk bulan baru.
-                  </p>
+            {/* Auto Close Execution Notification Banner (if auto-closed just ran) */}
+            {autoCloseBanner && (
+              <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 text-white border border-emerald-500/40 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center justify-center shrink-0 shadow-inner">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                        ✓ Tutup Buku Otomatis Selesai
+                      </span>
+                      <span className="text-xs text-slate-300 font-mono font-bold">
+                        {autoCloseBanner.month}
+                      </span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-black text-white mt-1">
+                      Buku Bulan {autoCloseBanner.month} Berhasil Ditutup Otomatis
+                    </h3>
+                    <p className="text-xs text-emerald-200/90 mt-0.5">
+                      Total Saldo tercatat rapi: <strong>{formatRupiah(autoCloseBanner.totalBalance)}</strong>. Pembukuan bulan baru telah disiapkan.
+                    </p>
+                  </div>
                 </div>
-                <button
-                  onClick={handleCloseCurrentMonth}
-                  className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-md hover:bg-slate-800 transition"
-                >
-                  🔒 Tutup Buku Sekarang
-                </button>
+                <div className="flex items-center space-x-2 shrink-0 self-start sm:self-center">
+                  <button
+                    onClick={() => {
+                      setSelectedMonthFilter(autoCloseBanner.month);
+                      setAutoCloseBanner(null);
+                    }}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition cursor-pointer shadow-md"
+                  >
+                    Lihat Laporan Bulan Ini
+                  </button>
+                  <button
+                    onClick={() => setAutoCloseBanner(null)}
+                    className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition cursor-pointer"
+                    title="Tutup Notifikasi"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* End of Month Reminder Banner */}
+            {showEndOfMonthReminder && (
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300/80 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+                <div className="flex items-start space-x-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-800 border border-amber-400/40 flex items-center justify-center shrink-0 mt-0.5">
+                    <Clock className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-900 border border-amber-300">
+                        {monthEndInfo.isLastDay ? 'Hari Ini Akhir Bulan' : `Sisa ${monthEndInfo.daysRemaining} Hari`}
+                      </span>
+                      <span className="text-xs font-bold text-amber-900">
+                        {monthEndInfo.formattedLastDate}
+                      </span>
+                    </div>
+                    <h3 className="text-sm sm:text-base font-black text-amber-950 mt-1">
+                      Waktunya Tutup Buku Akhir Bulan!
+                    </h3>
+                    <p className="text-xs text-amber-900/90 mt-0.5 leading-relaxed">
+                      {autoCloseConfig.enabled
+                        ? `⚡ Tutup Buku Otomatis Aktif: Sistem akan mengunci dan mengarsipkan laporan kas secara otomatis pada tanggal ${monthEndInfo.formattedLastDate}.`
+                        : 'Simpan dan arsipkan catatan transaksi bulan ini agar pembukuan bulan baru bersih dan laba bersih terukur rapi.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
+                  <button
+                    onClick={() => setIsAutoCloseModalOpen(true)}
+                    className="px-3.5 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+                  >
+                    ⚙️ Atur Otomatis
+                  </button>
+                  <button
+                    onClick={handleCloseCurrentMonth}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>🔒 Tutup Buku Sekarang</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -588,6 +765,8 @@ export default function App() {
               onSelectMonthFilter={setSelectedMonthFilter}
               closedMonths={closedMonths}
               availableMonths={availableMonths}
+              autoCloseEnabled={autoCloseConfig.enabled}
+              onOpenAutoCloseSettings={() => setIsAutoCloseModalOpen(true)}
             />
 
             {/* Daily Transaction List */}
@@ -609,6 +788,21 @@ export default function App() {
               onDownloadMonthPdf={handleDownloadMonthPdf}
             />
           </div>
+        )}
+
+        {/* NOTA & KASIR TAB (WARUNG SOTO & RAWON / TOKO) */}
+        {activeTab === 'nota' && (
+          <NotaOrderManager
+            menuItems={menuItems}
+            onUpdateMenuItems={handleUpdateMenuItems}
+            orderBills={orderBills}
+            onSaveOrderBill={handleSaveOrderBill}
+            onRecordTransaction={handleSaveTransaction}
+            onRecordKasbon={handleSaveDebt}
+            storeProfile={storeProfile}
+            onUpdateStoreProfile={handleUpdateStoreProfile}
+            onPrintBill={(bill) => setPrintPayload({ type: 'order_bill', data: bill })}
+          />
         )}
 
         {/* FINANCIAL HEALTH TAB */}
@@ -701,6 +895,19 @@ export default function App() {
           />
         )}
 
+        {/* TIPS & FORECAST TAB */}
+        {activeTab === 'tips' && (
+          <TipsAndForecastView
+            transactions={transactions}
+            totalBalance={summary.totalBalance}
+            bills={bills}
+            debts={debts}
+            autoCloseConfig={autoCloseConfig}
+            onOpenAutoCloseSettings={() => setIsAutoCloseModalOpen(true)}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+          />
+        )}
+
         {/* FEATURES TAB */}
         {activeTab === 'features' && (
           <FeaturesView
@@ -712,6 +919,9 @@ export default function App() {
             onOpenPinModal={() => setIsPinModalOpen(true)}
             onOpenBills={() => setActiveTab('bills')}
             onOpenHealth={() => setActiveTab('health')}
+            onOpenTips={() => setActiveTab('tips')}
+            onOpenAutoClose={() => setIsAutoCloseModalOpen(true)}
+            onOpenNota={() => setActiveTab('nota')}
           />
         )}
 
@@ -822,6 +1032,21 @@ export default function App() {
         onClose={() => setPrintPayload(null)}
         data={printPayload?.data}
         type={printPayload?.type as any}
+        profile={storeProfile}
+      />
+
+      {/* Auto Close Month-End Settings Modal */}
+      <AutoCloseModal
+        isOpen={isAutoCloseModalOpen}
+        onClose={() => setIsAutoCloseModalOpen(false)}
+        config={autoCloseConfig}
+        onSaveConfig={handleSaveAutoCloseConfig}
+        onExecuteNow={() => {
+          handleCloseCurrentMonth();
+          setIsAutoCloseModalOpen(false);
+        }}
+        closedMonths={closedMonths}
+        closedMonthSnapshots={closedMonthSnapshots}
       />
 
       {/* Auto-Sync Toast Notification */}

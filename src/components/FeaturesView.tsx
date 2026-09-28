@@ -15,6 +15,9 @@ import {
   Printer,
   Receipt,
   Activity,
+  Lightbulb,
+  Zap,
+  Clock,
 } from 'lucide-react';
 
 interface FeaturesViewProps {
@@ -26,6 +29,9 @@ interface FeaturesViewProps {
   onOpenPinModal: () => void;
   onOpenBills?: () => void;
   onOpenHealth?: () => void;
+  onOpenTips?: () => void;
+  onOpenAutoClose?: () => void;
+  onOpenNota?: () => void;
 }
 
 export const FeaturesView: React.FC<FeaturesViewProps> = ({
@@ -37,8 +43,41 @@ export const FeaturesView: React.FC<FeaturesViewProps> = ({
   onOpenPinModal,
   onOpenBills,
   onOpenHealth,
+  onOpenTips,
+  onOpenAutoClose,
+  onOpenNota,
 }) => {
   const featuresList = [
+    {
+      id: 'nota-order',
+      title: 'Kasir & Nota Digital Warung Makan',
+      description: 'Input pesanan Soto Lamongan, Rawon, Es Jeruk, Es Kopi, Krupuk & Telur Asin. Hitung total orang, cetak struk thermal, dan kirim ke WhatsApp.',
+      icon: Receipt,
+      badge: 'Fitur Baru Kuliner',
+      badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+      actionText: 'Buka Kasir & Nota',
+      action: onOpenNota || onOpenSync,
+    },
+    {
+      id: 'auto-close',
+      title: 'Otomatis Tutup Buku Tiap Akhir Bulan',
+      description: 'Sistem mengunci dan mengarsipkan laporan pembukuan otomatis pada tanggal akhir bulan. Saldo modal bulan baru tertata rapi.',
+      icon: Zap,
+      badge: 'Fitur Baru Unggulan',
+      badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold',
+      actionText: 'Atur Tutup Buku',
+      action: onOpenAutoClose || onOpenSync,
+    },
+    {
+      id: 'financial-tips',
+      title: 'Proyeksi Saldo Akhir Bulan & Tips Finansial',
+      description: 'Prediksi sisa kas pada tanggal akhir bulan, estimasi belanja harian, audit kebocoran kas, dan kalkulator dana darurat usaha.',
+      icon: Lightbulb,
+      badge: 'Fitur Baru Unggulan',
+      badgeColor: 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
+      actionText: 'Buka Tips & Proyeksi',
+      action: onOpenTips || onOpenHealth || onOpenCategories,
+    },
     {
       id: 'financial-health',
       title: 'Skor Kesehatan Finansial & Diagnostik Cerdas',

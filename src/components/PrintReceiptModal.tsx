@@ -1,14 +1,15 @@
 import React, { useRef, useState } from 'react';
 import { X, Printer, Download, CheckCircle2 } from 'lucide-react';
-import { Transaction, DebtItem, FinancialHealthMetrics } from '../types';
+import { Transaction, DebtItem, FinancialHealthMetrics, StoreProfile } from '../types';
 import { formatRupiah, formatDateIndonesian } from '../utils/formatters';
 import { downloadReceiptPdf } from '../utils/pdfGenerator';
 
 interface PrintReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: any; // Can be Transaction, KasbonItem/DebtItem, or Report payload
-  type: 'transaction' | 'kasbon' | 'report';
+  data: any; // Can be Transaction, KasbonItem/DebtItem, OrderBill, or Report payload
+  type: 'transaction' | 'kasbon' | 'report' | 'order_bill';
+  profile?: StoreProfile;
 }
 
 export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
@@ -16,6 +17,7 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
   onClose,
   data,
   type,
+  profile,
 }) => {
   const printAreaRef = useRef<HTMLDivElement>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -27,7 +29,7 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
   };
 
   const handleDownloadPdf = () => {
-    downloadReceiptPdf(data, type);
+    downloadReceiptPdf(data, type, profile);
     setDownloadSuccess(true);
     setTimeout(() => {
       setDownloadSuccess(false);
@@ -104,8 +106,17 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
             >
               {/* Receipt Header */}
               <div className="text-center mb-4">
-                <h2 className="font-bold text-lg mb-1 tracking-tight">UANG WARUNG</h2>
-                <p className="text-[10px] text-gray-600">Catatan Keuangan Pintar</p>
+                <h2 className="font-bold text-lg mb-0.5 tracking-tight uppercase">
+                  {type === 'order_bill' ? (profile?.name || 'WARUNG SOTO & RAWON') : 'UANG WARUNG'}
+                </h2>
+                <p className="text-[10px] text-gray-600">
+                  {type === 'order_bill' ? (profile?.tagline || 'Soto Lamongan, Rawon & Aneka Kuliner') : 'Catatan Keuangan Pintar'}
+                </p>
+                {type === 'order_bill' && (profile?.address || profile?.phone) && (
+                  <p className="text-[9px] text-gray-500 mt-0.5">
+                    {[profile?.address, profile?.phone ? `Telp: ${profile.phone}` : ''].filter(Boolean).join(' • ')}
+                  </p>
+                )}
                 <div className="border-b-2 border-dashed border-gray-400 my-2"></div>
               </div>
 
@@ -150,6 +161,84 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
                   <div className="flex justify-between items-end mt-4">
                     <span className="font-bold text-sm">TOTAL</span>
                     <span className="font-black text-lg">{formatRupiah(data.amount)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Order Bill Content (Warung Soto & Rawon) */}
+              {type === 'order_bill' && (
+                <div>
+                  <div className="text-center mb-3">
+                    <p className="font-bold text-sm uppercase">NOTA PESANAN</p>
+                    <p className="text-[10px] mt-0.5">{data.date} {data.time} • No: {data.id}</p>
+                  </div>
+                  
+                  <div className="mb-3 space-y-1 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Pelanggan:</span>
+                      <span className="font-bold">{data.customerName || 'Pelanggan'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Tipe Pesanan:</span>
+                      <span className="font-semibold">
+                        {data.orderType === 'dine_in' ? `Makan Sini (Meja ${data.tableNumber || '-'})` : 'Bungkus / Take Away'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Jumlah Orang:</span>
+                      <span className="font-bold">{data.totalCustomers || 1} Orang</span>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-dashed border-gray-400 my-2"></div>
+
+                  {/* Menu Items List */}
+                  <div className="mb-3 space-y-1.5">
+                    <p className="font-bold text-[11px] mb-1">Rincian Menu:</p>
+                    {Array.isArray(data.items) && data.items.map((it: any, idx: number) => (
+                      <div key={idx} className="flex justify-between text-[11px]">
+                        <div>
+                          <span className="font-bold">{it.qty}x</span> {it.name}
+                        </div>
+                        <span className="font-bold">{formatRupiah((it.price || 0) * (it.qty || 1))}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="border-b border-dashed border-gray-400 my-2"></div>
+
+                  {/* Totals */}
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>{formatRupiah(data.subtotal || data.total || 0)}</span>
+                    </div>
+                    {data.discount > 0 && (
+                      <div className="flex justify-between text-rose-600">
+                        <span>Diskon:</span>
+                        <span>-{formatRupiah(data.discount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-1 border-t border-dashed border-gray-300">
+                      <span className="font-bold text-sm">TOTAL:</span>
+                      <span className="font-black text-base">{formatRupiah(data.total || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600 pt-1">
+                      <span>Bayar:</span>
+                      <span className="font-bold uppercase">{data.paymentMethod || 'cash'}</span>
+                    </div>
+                    {data.paymentMethod === 'cash' && data.cashTendered && (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Uang Diterima:</span>
+                          <span>{formatRupiah(data.cashTendered)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-emerald-700">
+                          <span>Kembalian:</span>
+                          <span>{formatRupiah(data.changeAmount || 0)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

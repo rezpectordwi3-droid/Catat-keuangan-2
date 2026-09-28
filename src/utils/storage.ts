@@ -1,4 +1,5 @@
-import { Transaction, Category, AccountInfo, SyncSettings, DailyBalance, DebtItem, BillItem, FinancialHealthMetrics } from '../types';
+import { Transaction, Category, AccountInfo, SyncSettings, DailyBalance, DebtItem, BillItem, FinancialHealthMetrics, AutoCloseConfig, MonthEndForecast, ClosedMonthSnapshot, MenuItem, OrderBill, OrderItem, StoreProfile } from '../types';
+export type { ClosedMonthSnapshot };
 import { DEFAULT_CATEGORIES, INITIAL_ACCOUNTS, INITIAL_SYNC_SETTINGS, INITIAL_TRANSACTIONS, DEFAULT_OPEN_BALANCE, INITIAL_BILLS } from '../data/initialData';
 
 const KEYS = {
@@ -10,6 +11,191 @@ const KEYS = {
   DEBTS: 'catat_keuangan_debts_v1',
   PIN_CODE: 'catat_keuangan_pin_v1',
   BILLS: 'catat_keuangan_bills_v1',
+  AUTO_CLOSE_CONFIG: 'catat_keuangan_auto_close_config_v1',
+  ORDER_BILLS: 'catat_keuangan_order_bills_v1',
+  MENU_ITEMS: 'catat_keuangan_menu_items_v2',
+  STORE_PROFILE: 'catat_keuangan_store_profile_v1',
+};
+
+export const DEFAULT_STORE_PROFILE: StoreProfile = {
+  name: 'Warung Soto & Rawon',
+  phone: '0812-3456-7890',
+  address: 'Jl. Raya Kuliner No. 10',
+  tagline: 'Soto Lamongan, Rawon & Aneka Kuliner',
+  footerMessage: 'Maturnuwun sampun mampir & jajan! 🙏\nSemoga berkah, kenyang & sehat selalu.',
+};
+
+export const loadStoredStoreProfile = (): StoreProfile => {
+  try {
+    const data = localStorage.getItem(KEYS.STORE_PROFILE);
+    return data ? JSON.parse(data) : DEFAULT_STORE_PROFILE;
+  } catch (e) {
+    return DEFAULT_STORE_PROFILE;
+  }
+};
+
+export const saveStoredStoreProfile = (profile: StoreProfile) => {
+  try {
+    localStorage.setItem(KEYS.STORE_PROFILE, JSON.stringify(profile));
+  } catch (e) {
+    console.error('Failed saving store profile', e);
+  }
+};
+
+// Menu Bawaan Warung Soto & Rawon sesuai permintaan harga & varian terbaru
+export const DEFAULT_MENU_ITEMS: MenuItem[] = [
+  {
+    id: 'menu-soto-dinein',
+    name: 'Soto Lamongan (Makan di Tempat)',
+    category: 'makanan',
+    defaultPrice: 30000,
+    icon: 'Soup',
+    notes: 'Termasuk nasi & minum',
+  },
+  {
+    id: 'menu-soto-bungkus',
+    name: 'Soto Lamongan (Bungkus)',
+    category: 'makanan',
+    defaultPrice: 25000,
+    icon: 'ShoppingBag',
+    notes: 'Porsi bungkus bawa pulang',
+  },
+  {
+    id: 'menu-rawon',
+    name: 'Rawon',
+    category: 'makanan',
+    defaultPrice: 40000,
+    icon: 'Utensils',
+    notes: 'Daging sapi kuah kluwek khas Jatim',
+  },
+  {
+    id: 'menu-es-jeruk',
+    name: 'Es Jeruk',
+    category: 'minuman',
+    defaultPrice: 5000,
+    icon: 'GlassWater',
+    notes: 'Perasan jeruk segar asli',
+  },
+  {
+    id: 'menu-es-kopi',
+    name: 'Es Kopi',
+    category: 'minuman',
+    defaultPrice: 5000,
+    icon: 'Coffee',
+    notes: 'Kopi hitam / kopi susu dingin',
+  },
+  {
+    id: 'menu-krupuk',
+    name: 'Krupuk',
+    category: 'tambahan',
+    defaultPrice: 5000,
+    icon: 'Sparkles',
+    notes: 'Renyah gurih pelengkap soto/rawon',
+  },
+  {
+    id: 'menu-telur-asin',
+    name: 'Telur Asin',
+    category: 'tambahan',
+    defaultPrice: 8000,
+    icon: 'Egg',
+    notes: 'Telur asin masir gurih',
+  },
+  {
+    id: 'menu-telur-rebus',
+    name: 'Telur Rebus (Add-on)',
+    category: 'tambahan',
+    defaultPrice: 5000,
+    icon: 'Egg',
+    notes: 'Add-on telur rebus matang',
+  },
+];
+
+export const loadStoredMenuItems = (): MenuItem[] => {
+  try {
+    const data = localStorage.getItem(KEYS.MENU_ITEMS);
+    return data ? JSON.parse(data) : DEFAULT_MENU_ITEMS;
+  } catch (e) {
+    return DEFAULT_MENU_ITEMS;
+  }
+};
+
+export const saveStoredMenuItems = (items: MenuItem[]) => {
+  try {
+    localStorage.setItem(KEYS.MENU_ITEMS, JSON.stringify(items));
+  } catch (e) {
+    console.error('Failed saving menu items', e);
+  }
+};
+
+export const loadStoredOrderBills = (): OrderBill[] => {
+  try {
+    const data = localStorage.getItem(KEYS.ORDER_BILLS);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+export const saveStoredOrderBills = (bills: OrderBill[]) => {
+  try {
+    localStorage.setItem(KEYS.ORDER_BILLS, JSON.stringify(bills));
+  } catch (e) {
+    console.error('Failed saving order bills', e);
+  }
+};
+
+// Generator Teks Struk WhatsApp Digital
+export const generateWhatsAppNotaText = (
+  bill: OrderBill,
+  profile?: StoreProfile
+): string => {
+  const storeName = profile?.name || 'Warung Soto & Rawon';
+  const line = '--------------------------------------';
+  const itemLines = bill.items
+    .map((it) => {
+      const sub = it.price * it.qty;
+      return `• ${it.qty}x ${it.name} @Rp ${it.price.toLocaleString('id-ID')} = Rp ${sub.toLocaleString('id-ID')}`;
+    })
+    .join('\n');
+
+  const orderTypeStr = bill.orderType === 'dine_in' ? 'Makan di Tempat' : 'Bungkus / Take Away';
+  const tableStr = bill.tableNumber ? ` (Meja ${bill.tableNumber})` : '';
+
+  let paymentDetail = `Metode Bayar: *${bill.paymentMethod.toUpperCase()}*`;
+  if (bill.paymentMethod === 'cash' && bill.cashTendered) {
+    paymentDetail += `\nUang Diterima: Rp ${bill.cashTendered.toLocaleString('id-ID')}\nKembalian: Rp ${(bill.changeAmount || 0).toLocaleString('id-ID')}`;
+  } else if (bill.paymentMethod === 'kasbon') {
+    paymentDetail += ` *(Belum Lunas / Masuk Kasbon)*`;
+  }
+
+  let contactInfo = '';
+  if (profile?.address) {
+    contactInfo += `\n📍 ${profile.address}`;
+  }
+  if (profile?.phone) {
+    contactInfo += `\n📞 ${profile.phone}`;
+  }
+
+  const footer = profile?.footerMessage || 'Maturnuwun sampun rawuh & jajan! 🙏\nSemoga sehat, kenyang & berkah selalu.';
+
+  return `🧾 *${storeName.toUpperCase()}*${contactInfo}
+${line}
+No. Nota: *${bill.id}*
+Waktu: ${bill.date} | ${bill.time} WIB
+Pelanggan: *${bill.customerName || 'Pelanggan'}*
+Tipe: ${orderTypeStr}${tableStr}
+Total Pelanggan: *${bill.totalCustomers || 1} Orang*
+${line}
+*PESANAN MENU:*
+${itemLines}
+${line}
+Subtotal: Rp ${bill.subtotal.toLocaleString('id-ID')}${
+    bill.discount > 0 ? `\nDiskon: -Rp ${bill.discount.toLocaleString('id-ID')}` : ''
+  }
+*TOTAL: Rp ${bill.total.toLocaleString('id-ID')}*
+${paymentDetail}
+${line}
+${footer}`;
 };
 
 export const loadStoredBills = (): BillItem[] => {
@@ -513,16 +699,6 @@ export const resetToSampleData = () => {
 const KEYS_CLOSED_MONTHS = 'catat_keuangan_closed_months_v1';
 const KEYS_CLOSED_MONTH_SNAPSHOTS = 'catat_keuangan_closed_month_snapshots_v1';
 
-export interface ClosedMonthSnapshot {
-  month: string; // e.g. '2026-08'
-  closedAt: number;
-  openBalance: number;
-  cashIn: number;
-  cashOut: number;
-  totalBalance: number;
-  transactionCount?: number;
-}
-
 export const loadClosedMonths = (): string[] => {
   try {
     const data = localStorage.getItem(KEYS_CLOSED_MONTHS);
@@ -567,6 +743,263 @@ export const deleteClosedMonthSnapshot = (month: string) => {
   } catch (e) {
     console.error('Failed deleting closed month snapshot', e);
   }
+};
+
+// ==========================================
+// PENGATURAN & LOGIKA OTOMATIS TUTUP BUKU
+// ==========================================
+export const loadAutoCloseConfig = (): AutoCloseConfig => {
+  try {
+    const data = localStorage.getItem(KEYS.AUTO_CLOSE_CONFIG);
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {}
+  return {
+    enabled: true, // Otomatis aktif sesuai permintaan pengguna
+    carryOverMode: 'zero', // default mulai dari nol (clean slate), atau rollover
+  };
+};
+
+export const saveAutoCloseConfig = (config: AutoCloseConfig) => {
+  try {
+    localStorage.setItem(KEYS.AUTO_CLOSE_CONFIG, JSON.stringify(config));
+  } catch (e) {
+    console.error('Failed saving auto close config', e);
+  }
+};
+
+// Helper kalkulasi tanggal akhir bulan
+export const getMonthEndInfo = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0 to 11
+  const day = date.getDate();
+
+  // Hari terakhir dari bulan berjalan (Day 0 of next month)
+  const lastDateObj = new Date(year, month + 1, 0);
+  const totalDaysInMonth = lastDateObj.getDate();
+  const daysRemaining = Math.max(0, totalDaysInMonth - day);
+  const isLastDay = day === totalDaysInMonth;
+  const currentMonthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+  const formattedLastDate = new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(lastDateObj);
+
+  return {
+    year,
+    month: month + 1,
+    day,
+    totalDaysInMonth,
+    daysRemaining,
+    isLastDay,
+    lastDateObj,
+    formattedLastDate,
+    currentMonthStr,
+  };
+};
+
+// Proyeksi & Prediksi Saldo Akhir Bulan (Month-End Forecast)
+export const calculateMonthEndForecast = (
+  transactions: Transaction[],
+  currentTotalBalance: number,
+  bills: BillItem[] = [],
+  debts: DebtItem[] = []
+): MonthEndForecast => {
+  const now = new Date();
+  const monthInfo = getMonthEndInfo(now);
+  const currentMonthStr = monthInfo.currentMonthStr;
+
+  // Transaksi di bulan aktif berjalan
+  const monthTxs = transactions.filter((t) => (t.date || '').slice(0, 7) === currentMonthStr);
+  const currentCashIn = monthTxs.filter((t) => t.type === 'cash_in').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
+  const currentCashOut = monthTxs.filter((t) => t.type === 'cash_out').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
+
+  // Hari berjalan (minimal 1)
+  const daysElapsed = Math.max(1, monthInfo.day);
+  const dailyAvgExpense = Math.round(currentCashOut / daysElapsed);
+  const dailyAvgIncome = Math.round(currentCashIn / daysElapsed);
+
+  const daysRemaining = monthInfo.daysRemaining;
+
+  // Tagihan jatuh tempo yang belum terbayar
+  const pendingBills = bills.filter((b) => b.status === 'unpaid');
+  const pendingBillsAmount = pendingBills.reduce((s, b) => s + sanitizeAmount(b.amount), 0);
+
+  // Piutang kasbon belum tertagih
+  const pendingReceivables = debts.filter((d) => d.type === 'receivable' && d.status === 'unpaid');
+  const pendingReceivablesAmount = pendingReceivables.reduce((s, d) => s + sanitizeAmount(d.amount), 0);
+
+  // Estimasi pengeluaran & pemasukan tersisa sampai akhir bulan
+  const projectedRemainingExpense = dailyAvgExpense * daysRemaining;
+  const projectedRemainingIncome = dailyAvgIncome * daysRemaining;
+
+  // Estimasi saldo akhir saat tutup buku
+  const projectedFinalBalance = Math.round(
+    currentTotalBalance + projectedRemainingIncome - projectedRemainingExpense - pendingBillsAmount
+  );
+
+  // Alokasi belanja harian aman tersisa
+  const safeAvailable = Math.max(0, currentTotalBalance - pendingBillsAmount);
+  const safeDailyBudget = daysRemaining > 0 ? Math.round(safeAvailable / daysRemaining) : safeAvailable;
+
+  let status: 'surplus' | 'moderate' | 'deficit_risk' = 'surplus';
+  let advice = '';
+
+  if (projectedFinalBalance < 0 || (currentTotalBalance - pendingBillsAmount < 0)) {
+    status = 'deficit_risk';
+    advice = `Peringatan: Proyeksi saldo akhir bulan berisiko defisit. Terdapat tagihan pending Rp ${pendingBillsAmount.toLocaleString('id-ID')} & pengeluaran rata-rata Rp ${dailyAvgExpense.toLocaleString('id-ID')}/hari. Batasi belanja harian max Rp ${safeDailyBudget.toLocaleString('id-ID')}/hari serta segera tagih piutang kasbon Rp ${pendingReceivablesAmount.toLocaleString('id-ID')}.`;
+  } else if (projectedFinalBalance < (currentTotalBalance * 0.3) || (dailyAvgExpense > dailyAvgIncome && dailyAvgExpense > 0)) {
+    status = 'moderate';
+    advice = `Laju belanja harian (Rp ${dailyAvgExpense.toLocaleString('id-ID')}/hari) cukup tinggi. Jaga batas aman belanja harian di angka Rp ${safeDailyBudget.toLocaleString('id-ID')}/hari agar saldo tetap surplus saat tutup buku akhir bulan.`;
+  } else {
+    status = 'surplus';
+    advice = `Arus kas sehat & aman! Saldo diproyeksikan surplus sekitar Rp ${projectedFinalBalance.toLocaleString('id-ID')} pada penutupan buku tanggal ${monthInfo.formattedLastDate}.`;
+  }
+
+  return {
+    daysInMonth: monthInfo.totalDaysInMonth,
+    currentDay: monthInfo.day,
+    daysRemaining,
+    isLastDay: monthInfo.isLastDay,
+    dailyAvgExpense,
+    dailyAvgIncome,
+    projectedRemainingExpense,
+    projectedRemainingIncome,
+    pendingBillsAmount,
+    projectedFinalBalance,
+    status,
+    advice,
+    safeDailyBudget,
+  };
+};
+
+export interface AutoCloseResult {
+  closedMonthsAdded: string[];
+  newSnapshots: Record<string, ClosedMonthSnapshot>;
+  newClosedMonths: string[];
+  newOpenBalance: number;
+  lastClosedSnapshot?: ClosedMonthSnapshot;
+  wasTriggered: boolean;
+}
+
+// Engine Pemeriksa & Pengeksekusi Tutup Buku Otomatis
+export const checkAndExecuteAutoClosing = (
+  allTransactions: Transaction[],
+  currentOpenBalance: number,
+  currentClosedMonths: string[],
+  currentSnapshots: Record<string, ClosedMonthSnapshot>,
+  config: AutoCloseConfig
+): AutoCloseResult => {
+  if (!config.enabled) {
+    return {
+      closedMonthsAdded: [],
+      newSnapshots: currentSnapshots,
+      newClosedMonths: currentClosedMonths,
+      newOpenBalance: currentOpenBalance,
+      wasTriggered: false,
+    };
+  }
+
+  const now = new Date();
+  const monthInfo = getMonthEndInfo(now);
+  const currentMonthStr = monthInfo.currentMonthStr; // e.g. '2026-09'
+
+  // Kumpulkan semua bulan yang memiliki transaksi
+  const txMonthsSet = new Set<string>();
+  allTransactions.forEach((t) => {
+    const m = (t.date || '').slice(0, 7);
+    if (m && m.length === 7) txMonthsSet.add(m);
+  });
+
+  const candidateMonths: string[] = [];
+
+  // A. Bulan-bulan kalender lampau yang ada transaksinya atau belum ditutup
+  Array.from(txMonthsSet)
+    .sort()
+    .forEach((m) => {
+      if (m < currentMonthStr && !currentClosedMonths.includes(m)) {
+        candidateMonths.push(m);
+      }
+    });
+
+  // B. Jika hari ini adalah TANGGAL AKHIR BULAN dan bulan ini belum ditutup
+  if (monthInfo.isLastDay && !currentClosedMonths.includes(currentMonthStr)) {
+    if (!candidateMonths.includes(currentMonthStr)) {
+      candidateMonths.push(currentMonthStr);
+    }
+  }
+
+  if (candidateMonths.length === 0) {
+    return {
+      closedMonthsAdded: [],
+      newSnapshots: currentSnapshots,
+      newClosedMonths: currentClosedMonths,
+      newOpenBalance: currentOpenBalance,
+      wasTriggered: false,
+    };
+  }
+
+  const updatedClosedMonths = [...currentClosedMonths];
+  const updatedSnapshots = { ...currentSnapshots };
+  let runningOpenBalance = currentOpenBalance;
+  let lastSnapshot: ClosedMonthSnapshot | undefined;
+
+  candidateMonths.forEach((targetMonth) => {
+    const monthTxs = allTransactions.filter((t) => (t.date || '').slice(0, 7) === targetMonth);
+    const mCashIn = monthTxs.filter((t) => t.type === 'cash_in').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
+    const mCashOut = monthTxs.filter((t) => t.type === 'cash_out').reduce((s, t) => s + sanitizeAmount(t.amount), 0);
+
+    const mOpen = calculateCarriedOpenBalance(allTransactions, currentOpenBalance, targetMonth);
+    const mTotal = mOpen + mCashIn - mCashOut;
+
+    const snapshot: ClosedMonthSnapshot = {
+      month: targetMonth,
+      closedAt: Date.now(),
+      openBalance: mOpen,
+      cashIn: mCashIn,
+      cashOut: mCashOut,
+      totalBalance: mTotal,
+      transactionCount: monthTxs.length,
+      isAutoClosed: true,
+    };
+
+    updatedSnapshots[targetMonth] = snapshot;
+    saveClosedMonthSnapshot(snapshot);
+
+    if (!updatedClosedMonths.includes(targetMonth)) {
+      updatedClosedMonths.push(targetMonth);
+    }
+    lastSnapshot = snapshot;
+
+    // Tentukan modal awal bulan berikutnya
+    if (config.carryOverMode === 'rollover') {
+      runningOpenBalance = mTotal;
+    } else {
+      runningOpenBalance = 0; // Bersih dari nol
+    }
+  });
+
+  saveClosedMonths(updatedClosedMonths);
+  saveOpenBalance(runningOpenBalance);
+
+  const updatedConfig: AutoCloseConfig = {
+    ...config,
+    lastAutoClosedMonth: candidateMonths[candidateMonths.length - 1],
+    lastAutoClosedAt: Date.now(),
+  };
+  saveAutoCloseConfig(updatedConfig);
+
+  return {
+    closedMonthsAdded: candidateMonths,
+    newSnapshots: updatedSnapshots,
+    newClosedMonths: updatedClosedMonths,
+    newOpenBalance: runningOpenBalance,
+    lastClosedSnapshot: lastSnapshot,
+    wasTriggered: true,
+  };
 };
 
 // Calculate carried-over open balance up to a given month (YYYY-MM)
