@@ -548,11 +548,17 @@ export const calculateBalanceSummary = (
     const txDate = (t.date || '').slice(0, 10);
     const txMonth = txDate.slice(0, 7);
     const amt = sanitizeAmount(t.amount);
+
+    // PENTING: Jika bulan transaksi ini sudah ditutup buku (tercatat di closedMonths),
+    // data transaksi tersebut telah diarsipkan permanen.
+    // Maka transaksi ini TIDAK BOLEH lagi dihitung pada Cash In/Cash Out layar aktif berjalan.
+    if (closedMonths.includes(txMonth)) {
+      return;
+    }
+
     if (txDate < startDateLimit) {
-      if (!closedMonths.includes(txMonth)) {
-        if (t.type === 'cash_in') priorCashIn += amt;
-        else if (t.type === 'cash_out') priorCashOut += amt;
-      }
+      if (t.type === 'cash_in') priorCashIn += amt;
+      else if (t.type === 'cash_out') priorCashOut += amt;
     } else {
       if (t.type === 'cash_in') currentCashIn += amt;
       else if (t.type === 'cash_out') currentCashOut += amt;
@@ -788,6 +794,19 @@ export const getMonthEndInfo = (date = new Date()) => {
     year: 'numeric',
   }).format(lastDateObj);
 
+  // Tanggal 1 bulan berikutnya (saat eksekusi tutup buku otomatis dieksekusi)
+  const nextMonthFirstDateObj = new Date(year, month + 1, 1);
+  const nextMonthStr = `${nextMonthFirstDateObj.getFullYear()}-${String(nextMonthFirstDateObj.getMonth() + 1).padStart(2, '0')}`;
+  const formattedNextMonthStart = new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(nextMonthFirstDateObj);
+  const nextMonthName = new Intl.DateTimeFormat('id-ID', {
+    month: 'long',
+    year: 'numeric',
+  }).format(nextMonthFirstDateObj);
+
   return {
     year,
     month: month + 1,
@@ -798,6 +817,10 @@ export const getMonthEndInfo = (date = new Date()) => {
     lastDateObj,
     formattedLastDate,
     currentMonthStr,
+    nextMonthFirstDateObj,
+    nextMonthStr,
+    formattedNextMonthStart,
+    nextMonthName,
   };
 };
 
@@ -856,7 +879,7 @@ export const calculateMonthEndForecast = (
     advice = `Laju belanja harian (Rp ${dailyAvgExpense.toLocaleString('id-ID')}/hari) cukup tinggi. Jaga batas aman belanja harian di angka Rp ${safeDailyBudget.toLocaleString('id-ID')}/hari agar saldo tetap surplus saat tutup buku akhir bulan.`;
   } else {
     status = 'surplus';
-    advice = `Arus kas sehat & aman! Saldo diproyeksikan surplus sekitar Rp ${projectedFinalBalance.toLocaleString('id-ID')} pada penutupan buku tanggal ${monthInfo.formattedLastDate}.`;
+    advice = `Arus kas sehat & aman! Saldo diproyeksikan surplus sekitar Rp ${projectedFinalBalance.toLocaleString('id-ID')} menjelang pergantian ke bulan baru ${monthInfo.nextMonthName}.`;
   }
 
   return {
@@ -893,19 +916,35 @@ export const checkAndExecuteAutoClosing = (
   currentSnapshots: Record<string, ClosedMonthSnapshot>,
   config: AutoCloseConfig
 ): AutoCloseResult => {
+  const now = new Date();
+  const monthInfo = getMonthEndInfo(now);
+  const currentMonthStr = monthInfo.currentMonthStr; // e.g. '2026-09'
+
+  // SELF-HEALING: Jika bulan aktif yang sedang berjalan (currentMonthStr) sempat terlanjur ditutup
+  // secara otomatis oleh sistem versi sebelumnya, buka kembali kunci bulan aktif ini agar pengguna
+  // tetap bebas mencatat transaksi sampai akhir bulan penuh.
+  let cleanedClosedMonths = [...currentClosedMonths];
+  let cleanedSnapshots = { ...currentSnapshots };
+
+  if (cleanedClosedMonths.includes(currentMonthStr)) {
+    const activeSnapshot = cleanedSnapshots[currentMonthStr];
+    if (activeSnapshot?.isAutoClosed) {
+      cleanedClosedMonths = cleanedClosedMonths.filter((m) => m !== currentMonthStr);
+      delete cleanedSnapshots[currentMonthStr];
+      deleteClosedMonthSnapshot(currentMonthStr);
+      saveClosedMonths(cleanedClosedMonths);
+    }
+  }
+
   if (!config.enabled) {
     return {
       closedMonthsAdded: [],
-      newSnapshots: currentSnapshots,
-      newClosedMonths: currentClosedMonths,
+      newSnapshots: cleanedSnapshots,
+      newClosedMonths: cleanedClosedMonths,
       newOpenBalance: currentOpenBalance,
       wasTriggered: false,
     };
   }
-
-  const now = new Date();
-  const monthInfo = getMonthEndInfo(now);
-  const currentMonthStr = monthInfo.currentMonthStr; // e.g. '2026-09'
 
   // Kumpulkan semua bulan yang memiliki transaksi
   const txMonthsSet = new Set<string>();
@@ -916,34 +955,42 @@ export const checkAndExecuteAutoClosing = (
 
   const candidateMonths: string[] = [];
 
-  // A. Bulan-bulan kalender lampau yang ada transaksinya atau belum ditutup
+  // PENTING (Permintaan Pengguna):
+  // Tutup buku otomatis HANYA dilakukan saat kalender telah berganti ke tanggal baru bulan selanjutnya (m < currentMonthStr).
+  // BUKAN di -1 hari terakhir atau hari terakhir di bulan aktif ini!
+  // Bulan aktif berjalan (currentMonthStr) TIDAK AKAN PERNAH ditutup otomatis selama bulan tersebut masih berlangsung.
   Array.from(txMonthsSet)
     .sort()
     .forEach((m) => {
-      if (m < currentMonthStr && !currentClosedMonths.includes(m)) {
+      if (m < currentMonthStr && !cleanedClosedMonths.includes(m)) {
         candidateMonths.push(m);
       }
     });
 
-  // B. Jika hari ini adalah TANGGAL AKHIR BULAN dan bulan ini belum ditutup
-  if (monthInfo.isLastDay && !currentClosedMonths.includes(currentMonthStr)) {
-    if (!candidateMonths.includes(currentMonthStr)) {
-      candidateMonths.push(currentMonthStr);
+  // Bulan kalender persis sebelum bulan aktif ini (jika belum ditutup dan ada aktivitas)
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  if (!cleanedClosedMonths.includes(prevMonthStr) && !candidateMonths.includes(prevMonthStr)) {
+    const hasPastActivity =
+      allTransactions.some((t) => (t.date || '').slice(0, 7) <= prevMonthStr) || currentOpenBalance > 0;
+    if (hasPastActivity) {
+      candidateMonths.push(prevMonthStr);
+      candidateMonths.sort();
     }
   }
 
   if (candidateMonths.length === 0) {
     return {
       closedMonthsAdded: [],
-      newSnapshots: currentSnapshots,
-      newClosedMonths: currentClosedMonths,
+      newSnapshots: cleanedSnapshots,
+      newClosedMonths: cleanedClosedMonths,
       newOpenBalance: currentOpenBalance,
       wasTriggered: false,
     };
   }
 
-  const updatedClosedMonths = [...currentClosedMonths];
-  const updatedSnapshots = { ...currentSnapshots };
+  const updatedClosedMonths = [...cleanedClosedMonths];
+  const updatedSnapshots = { ...cleanedSnapshots };
   let runningOpenBalance = currentOpenBalance;
   let lastSnapshot: ClosedMonthSnapshot | undefined;
 

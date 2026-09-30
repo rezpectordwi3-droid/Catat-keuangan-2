@@ -83,7 +83,7 @@ export const AutoCloseModal: React.FC<AutoCloseModalProps> = ({
             Otomatis Tutup Buku Akhir Bulan
           </h2>
           <p className="text-xs text-indigo-200 mt-1 leading-relaxed">
-            Sistem secara otomatis mengarsipkan ringkasan kas setiap tanggal akhir bulan, sehingga pembukuan selalu rapi tanpa repot.
+            Sistem secara otomatis mengarsipkan kas saat berganti ke tanggal baru bulan berikutnya (tanggal 1), sehingga seluruh transaksi bulan aktif tetap bebas dicatat sampai akhir bulan tanpa terpotong.
           </p>
         </div>
 
@@ -101,7 +101,7 @@ export const AutoCloseModal: React.FC<AutoCloseModalProps> = ({
                 )}
               </span>
               <p className="text-xs text-slate-500 leading-normal">
-                Tiap tanggal akhir bulan ({monthInfo.formattedLastDate}), buku bulan berjalan otomatis ditutup & diarsipkan.
+                Bulan aktif tetap berjalan penuh sampai hari terakhir. Tepat saat tanggal berganti ke bulan baru ({monthInfo.formattedNextMonthStart}), buku bulan berjalan otomatis ditutup & diarsipkan rapi.
               </p>
             </div>
             <button
@@ -196,21 +196,24 @@ export const AutoCloseModal: React.FC<AutoCloseModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Jadwal Tutup Buku Berikutnya</span>
+                <span>Jadwal Eksekusi Tutup Buku Otomatis</span>
               </span>
               <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-full">
                 {monthInfo.isLastDay
-                  ? 'Hari Ini (Akhir Bulan)'
-                  : `Sisa ${monthInfo.daysRemaining} Hari`}
+                  ? 'Besok (Saat Masuk Bulan Baru)'
+                  : `Sisa ${monthInfo.daysRemaining} Hari di Bulan Ini`}
               </span>
             </div>
-            <div className="text-sm font-extrabold text-slate-900">
-              {monthInfo.formattedLastDate}
+            <div className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <span>{monthInfo.formattedNextMonthStart} (Tanggal 1)</span>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                Pukul 00:00 WIB
+              </span>
             </div>
             <p className="text-[11px] text-slate-600 leading-normal">
               {monthInfo.isLastDay
-                ? 'Hari ini adalah tanggal terakhir bulan! Sistem akan mengamankan dan mengarsipkan seluruh laporan buku bulan ini secara otomatis.'
-                : `Setiap tanggal ${monthInfo.totalDaysInMonth}, saat pergantian bulan tiba, riwayat bulan ini akan terkunci aman di Arsip Laporan.`}
+                ? `Hari ini adalah tanggal terakhir bulan (${monthInfo.formattedLastDate})! Anda tetap bebas mencatat seluruh transaksi kasir hari ini. Tutup buku otomatis baru akan dijalankan saat tanggal berganti ke 1 ${monthInfo.nextMonthName}.`
+                : `Bulan berjalan tetap aktif untuk mencatat transaksi sampai tanggal ${monthInfo.formattedLastDate}. Saat berganti ke tanggal 1 ${monthInfo.nextMonthName}, buku bulan ini otomatis diarsipkan rapi.`}
             </p>
           </div>
 

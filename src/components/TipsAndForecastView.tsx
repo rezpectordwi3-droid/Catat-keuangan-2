@@ -121,7 +121,7 @@ export const TipsAndForecastView: React.FC<TipsAndForecastViewProps> = ({
             <div className="flex items-center space-x-1.5 text-xs text-indigo-200/80 bg-white/10 px-3 py-2 rounded-xl backdrop-blur-xs">
               <Calendar className="w-3.5 h-3.5 text-indigo-300" />
               <span>
-                Jadwal Tutup Buku: <strong>{monthInfo.formattedLastDate}</strong> ({monthInfo.isLastDay ? 'Hari Ini!' : `Sisa ${monthInfo.daysRemaining} hari`})
+                Tutup Buku Otomatis: <strong>{monthInfo.formattedNextMonthStart}</strong> ({monthInfo.isLastDay ? 'Besok saat masuk bulan baru' : `Sisa ${monthInfo.daysRemaining} hari di bulan aktif`})
               </span>
             </div>
           </div>

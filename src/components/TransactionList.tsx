@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Transaction, Category } from '../types';
-import { Search, Filter, Trash2, Edit3, ArrowUpRight, ArrowDownLeft, Utensils, Car, ShoppingCart, Receipt, Tv, HeartPulse, GraduationCap, MoreHorizontal, Briefcase, Store, Gift, TrendingUp, Calendar, Wallet, Building2, Smartphone, CreditCard, FileText, Printer, Lock } from 'lucide-react';
+import { Search, Filter, Trash2, Edit3, ArrowUpRight, ArrowDownLeft, Utensils, Car, ShoppingCart, Receipt, Tv, HeartPulse, GraduationCap, MoreHorizontal, Briefcase, Store, Gift, TrendingUp, Calendar, Wallet, Building2, Smartphone, CreditCard, FileText, Printer, Lock, CheckCircle2 } from 'lucide-react';
 import { formatRupiah, formatDateIndonesian } from '../utils/formatters';
 import { sanitizeTimeString, exportSingleNoteToMarkdown } from '../utils/storage';
 
@@ -61,7 +61,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     // Month Filter
     let matchesMonth = true;
     if (selectedMonthFilter === 'current') {
-      matchesMonth = tx.date.startsWith(currentMonthStr);
+      const isCurrentClosed = closedMonths.includes(currentMonthStr);
+      if (isCurrentClosed) {
+        // Jika bulan ini sudah ditutup buku, datanya sudah tersimpan rapi di Arsip
+        matchesMonth = false;
+      } else {
+        matchesMonth = tx.date.startsWith(currentMonthStr);
+      }
     } else if (selectedMonthFilter !== 'all' && selectedMonthFilter) {
       matchesMonth = tx.date.startsWith(selectedMonthFilter);
     }
@@ -193,6 +199,34 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         </div>
       </div>
 
+      {/* Banner jika Bulan Ini sudah ditutup buku */}
+      {selectedMonthFilter === 'current' && closedMonths.includes(currentMonthStr) && (
+        <div className="bg-emerald-50 border border-emerald-200 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-900 shadow-2xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-200 flex items-center justify-center shrink-0 text-emerald-800">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-extrabold text-xs sm:text-sm text-emerald-950 flex items-center gap-2">
+                <span>Buku Bulan Ini Telah Ditutup & Diarsipkan</span>
+                <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-mono font-bold">
+                  {currentMonthStr}
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-800/90 mt-0.5">
+                Seluruh catatan pemasukan, pengeluaran & total saldo bulan ini telah diarsipkan ke Tutup Buku. Layar aktif kini bersih kembali dari nol (Rp 0).
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onSelectMonthFilter && onSelectMonthFilter(currentMonthStr)}
+            className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shrink-0 self-start sm:self-center cursor-pointer shadow-xs"
+          >
+            <span>Buka Arsip {currentMonthStr}</span>
+          </button>
+        </div>
+      )}
+
       {/* Closed Month Alert Banner */}
       {Boolean(selectedMonthFilter && selectedMonthFilter !== 'current' && selectedMonthFilter !== 'all' && closedMonths.includes(selectedMonthFilter)) && (
         <div className="bg-amber-50 border border-amber-200 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 shadow-2xs">
@@ -283,8 +317,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       {sortedDates.length === 0 ? (
         <div className="text-center py-12 px-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
           <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-          <p className="text-sm font-semibold text-slate-600">Tidak ada catatan transaksi ditemukan</p>
-          <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau filter Anda</p>
+          <p className="text-sm font-semibold text-slate-600">
+            {selectedMonthFilter === 'current' && closedMonths.includes(currentMonthStr)
+              ? 'Layar transaksi bersih untuk periode baru'
+              : 'Tidak ada catatan transaksi ditemukan'}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            {selectedMonthFilter === 'current' && closedMonths.includes(currentMonthStr)
+              ? 'Buku bulan ini telah diarsipkan. Klik tombol tambah (+) untuk mulai mencatat transaksi baru.'
+              : 'Coba sesuaikan kata kunci pencarian atau filter Anda'}
+          </p>
         </div>
       ) : (
         <div className="space-y-6">
